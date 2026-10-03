@@ -116,21 +116,6 @@ export function resolvePublicHost(hostHeader) {
   );
 }
 
-/** A site.json shareHost is used only when the request host is exactly that name. */
-function pinnedShareHost(site, hostHeader) {
-  const pinned = String(site?.shareHost ?? "")
-    .trim()
-    .toLowerCase()
-    .split(":")[0];
-  if (!pinned || !/^[a-z0-9.-]+$/.test(pinned) || !pinned.includes(".")) return "";
-  const request = String(hostHeader ?? "")
-    .split(",")[0]
-    .trim()
-    .split(":")[0]
-    .toLowerCase();
-  return request === pinned ? pinned : "";
-}
-
 export function isInstallQuery(url) {
   const query = String(url ?? "").split("?", 2)[1] ?? "";
   const params = new URLSearchParams(query);
@@ -362,6 +347,7 @@ export function grokOgHeadTags({
   cwd = process.cwd(),
 } = {}) {
   const title = resolveOgTitle(site, appName, host, documentTitle);
+  const publicHost = resolvePublicHost(host);
   const tags = [
     `<meta name="twitter:card" content="summary_large_image">`,
     `<meta property="og:title" content="${escapeHtml(title)}">`,
@@ -373,7 +359,6 @@ export function grokOgHeadTags({
   if (String(site.type ?? "").toLowerCase() === "x:game") {
     tags.push(`<meta property="og:type" content="x:game">`);
   }
-  const publicHost = resolvePublicHost(host) || pinnedShareHost(site, host);
   if (publicHost) {
     const asset = resolveOgCardAsset(site, cwd);
     const custom = Boolean(asset);

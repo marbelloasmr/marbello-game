@@ -10,7 +10,7 @@ export const Route = createFileRoute("/")({
       { title: brandConfig.title },
       { name: "description", content: brandConfig.description },
     ],
-    links: [{ rel: "canonical", href: `${brandConfig.domain}/` }],
+    links: [{ rel: "canonical", href: "https://marbello-game.vercel.app/" }],
   }),
 })
 

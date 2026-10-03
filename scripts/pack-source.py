@@ -14,7 +14,7 @@ SKIP_DIRS = {
     "dist",
     ".git",
 }
-SKIP_FILES = {"marbello-kod.zip", ".node_modules.lock"}
+SKIP_FILES = {"marbello-kod.zip", "marbello-game.zip", ".node_modules.lock"}
 MARKER = re.compile(r"[ \t]*\{/\* source-download:start \*/\}.*?\{/\* source-download:end \*/\}[ \t]*\n?", re.S)
 
 def keep(path: str) -> bool:

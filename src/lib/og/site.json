@@ -1,6 +1,8 @@
 {
   "title": "Marbello game",
+  "description": "Play satisfying interactive marble runs with realistic physics and ASMR sounds.",
   "type": "x:game",
   "card": "custom",
-  "color": "b9e6fb"
+  "color": "b9e6fb",
+  "shareHost": "marbello-game.vercel.app"
 }

@@ -1,9 +1,11 @@
 node_modules
+dist
 .vercel
 .tanstack
 screenshots
-dist
-.DS_Store
-*.log
+attachments
+artifacts
+public/marbello-kod.zip
+public/marbello-game.zip
 .env
 .env.*

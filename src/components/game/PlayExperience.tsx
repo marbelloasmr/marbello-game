@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link } from "@tanstack/react-router"
-import { Download, Headphones, Menu, Play, RotateCcw, Trophy, Volume2, VolumeX, Wrench, X, Youtube, Images } from "lucide-react"
+import { Headphones, Menu, Play, RotateCcw, Trophy, Volume2, VolumeX, Wrench, X, Youtube, Images } from "lucide-react"
 import { brandConfig } from "@/config/brandConfig"
 import { youtubeConfig } from "@/config/youtubeConfig"
 import { MARBLES, type MarbleId } from "@/data/marbleTypes"
@@ -22,10 +22,6 @@ export function PlayExperience() {
       <ClientCanvas />
       <div className="hud">
         <TopBar />
-        <a className="code-banner" href="/marbello-game.zip" download="marbello-game.zip">
-          <Download size={18} />
-          Pobierz kod
-        </a>
         <BrandCard />
         <SidePicker />
         <Dock />

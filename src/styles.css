@@ -80,19 +80,22 @@
 
   .topbar {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.7rem 0.7rem 0;
+    gap: 0.45rem;
+    padding: calc(env(safe-area-inset-top) + 0.55rem) 0.65rem 0;
   }
 
   .code-banner {
     pointer-events: auto;
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 5.1rem);
+    left: 0.7rem;
+    z-index: 5;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.45rem;
-    margin: 0.55rem 0.7rem 0 auto;
     width: fit-content;
     min-height: 2.75rem;
     padding: 0.45rem 1rem;
@@ -108,7 +111,9 @@
   .logo-link {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.5rem;
+    min-width: 0;
+    flex: 1 1 auto;
     pointer-events: auto;
     border-radius: 999px;
     color: var(--color-ink);
@@ -116,16 +121,21 @@
   }
 
   .logo-name {
+    min-width: 0;
+    overflow: hidden;
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: 1.02rem;
     line-height: 1.05;
     letter-spacing: -0.02em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .logo-mark {
     width: 3.4rem;
     height: 3.4rem;
+    flex: none;
     border-radius: 999px;
     object-fit: cover;
     box-shadow: 0 8px 22px rgb(255 79 163 / 0.35);
@@ -188,11 +198,14 @@
 
   .menu-sheet {
     position: absolute;
-    top: 4.6rem;
-    right: 0.7rem;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    z-index: 30;
     display: flex;
     flex-direction: column;
-    min-width: 12rem;
+    width: min(16rem, calc(100vw - 1.4rem));
+    max-height: min(70dvh, 24rem);
+    overflow: auto;
     padding: 0.4rem;
   }
 
@@ -215,13 +228,17 @@
   .hint {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.4rem;
+    max-width: min(92vw, 28rem);
     margin: 0;
     color: var(--color-ink);
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.04em;
+    text-align: center;
     text-transform: uppercase;
+    text-wrap: balance;
   }
 
   .swatches {
@@ -289,6 +306,158 @@
     color: var(--color-ink);
     font-variant-numeric: tabular-nums;
     font-weight: 650;
+  }
+
+  .score-pill {
+    display: flex;
+    gap: 0.55rem;
+    align-items: baseline;
+    justify-content: center;
+  }
+
+  .score-pill strong {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+  }
+
+  .score-pill em {
+    color: var(--color-magenta);
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  .score-pill .sub-live {
+    color: #c4512c;
+    font-size: 0.72rem;
+    font-weight: 650;
+  }
+
+  .yt-anchor {
+    position: relative;
+  }
+
+  .yt-bubble {
+    position: absolute;
+    top: calc(100% + 0.55rem);
+    left: 50%;
+    z-index: 6;
+    margin: 0;
+    padding: 0.42rem 0.75rem;
+    border-radius: 1rem;
+    background: white;
+    color: #e1062c;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    box-shadow: var(--shadow-float);
+    pointer-events: auto;
+    cursor: pointer;
+    transform: translateX(-50%);
+  }
+
+  .bonus-pop-back {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgb(8 16 40 / 0.46);
+  }
+
+  .bonus-pop {
+    position: relative;
+    width: min(22rem, 100%);
+    padding: 1.25rem 1rem 1rem;
+    text-align: center;
+  }
+
+  .bonus-pop h2 {
+    margin: 0;
+    font-size: 1.35rem;
+  }
+
+  .bonus-pop p {
+    margin: 0.35rem 0 0.85rem;
+    color: var(--color-ink-soft);
+  }
+
+  .bonus-pop .yt-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .yt-bubble::before {
+    content: "";
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    background: white;
+    transform: translateX(-50%) rotate(45deg);
+  }
+
+  .sub-menu-btn {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .sub-menu-note {
+    margin: 0.35rem 0.8rem;
+    color: #c4512c;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .sub-bonus {
+    position: absolute;
+    top: 4.5rem;
+    left: 50%;
+    z-index: 4;
+    width: min(18.5rem, calc(100% - 1.4rem));
+    padding: 0.85rem 2rem 0.8rem 0.85rem;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+
+  .sub-close {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    display: grid;
+    width: 1.7rem;
+    height: 1.7rem;
+    place-items: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-ink-soft);
+  }
+
+  .sub-bonus h2 {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.25;
+  }
+
+  .sub-bonus p {
+    margin: 0.25rem 0 0.6rem;
+    color: var(--color-ink-soft);
+  }
+
+  .sub-bonus .solid-btn {
+    width: 100%;
+  }
+
+  .sub-bonus-on {
+    margin: 0;
+    color: var(--color-ink);
+    font-weight: 700;
   }
 
   .results {
@@ -443,9 +612,334 @@
     }
   }
 
+  .boot {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding:
+      calc(env(safe-area-inset-top) + 9vh)
+      1.25rem
+      calc(env(safe-area-inset-bottom) + 5.5vh);
+    background: #070414;
+    pointer-events: auto;
+  }
+
+  .boot-sky {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 42% at 50% 28%, rgb(64 90 255 / 0.45), transparent 70%),
+      radial-gradient(ellipse 50% 30% at 18% 72%, rgb(255 60 160 / 0.28), transparent 72%),
+      radial-gradient(ellipse 46% 28% at 84% 64%, rgb(255 150 30 / 0.22), transparent 70%),
+      radial-gradient(ellipse 70% 24% at 50% 100%, rgb(40 180 255 / 0.2), transparent 70%),
+      linear-gradient(180deg, #05020e 0%, #120826 42%, #1a0c2e 100%);
+    animation: boot-glow 9s ease-in-out infinite alternate;
+  }
+
+  .boot-floor {
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    bottom: 0;
+    height: 34%;
+    background:
+      linear-gradient(180deg, transparent, rgb(8 4 20 / 0.2) 20%, rgb(12 8 28 / 0.55)),
+      repeating-linear-gradient(90deg, transparent 0 42px, rgb(80 200 255 / 0.05) 42px 43px);
+    transform: perspective(400px) rotateX(58deg);
+    transform-origin: center bottom;
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000 30%);
+    mask-image: linear-gradient(180deg, transparent, #000 30%);
+  }
+
+  .boot-trail {
+    position: absolute;
+    height: 3px;
+    border-radius: 999px;
+    filter: blur(1px);
+    opacity: 0.75;
+    animation: boot-drift 14s linear infinite;
+  }
+
+  .boot-trail-a {
+    top: 18%;
+    left: -20%;
+    width: 70%;
+    background: linear-gradient(90deg, transparent, #3cf, transparent);
+  }
+
+  .boot-trail-b {
+    top: 58%;
+    right: -15%;
+    width: 62%;
+    background: linear-gradient(90deg, transparent, #ff4fa3, #ffb703, transparent);
+    animation-duration: 18s;
+    animation-direction: reverse;
+  }
+
+  .boot-trail-c {
+    bottom: 16%;
+    left: -10%;
+    width: 80%;
+    background: linear-gradient(90deg, transparent, #7cf, #ffe56a, transparent);
+    animation-duration: 22s;
+  }
+
+  .boot-spark {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 8px #7cf;
+    opacity: 0.7;
+    animation: boot-spark 7s ease-in-out infinite;
+  }
+
+  .s1 { top: 12%; left: 18%; }
+  .s2 { top: 22%; right: 16%; animation-delay: -2s; }
+  .s3 { top: 48%; left: 8%; animation-delay: -3.5s; }
+  .s4 { top: 70%; right: 12%; animation-delay: -1s; }
+  .s5 { bottom: 18%; left: 28%; animation-delay: -4s; }
+  .s6 { top: 36%; right: 30%; animation-delay: -2.6s; }
+
+  .marble {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.95), transparent 18%),
+      radial-gradient(circle at 68% 72%, rgb(255 255 255 / 0.2), transparent 26%),
+      radial-gradient(circle at 40% 42%, var(--a), var(--b) 58%, var(--c));
+    box-shadow:
+      inset -6px -8px 12px rgb(0 0 0 / 0.35),
+      0 10px 18px rgb(0 0 0 / 0.28);
+  }
+
+  .far { opacity: 0.8; filter: saturate(1.1); animation: boot-float 9s ease-in-out infinite; }
+  .mid { animation: boot-float 6.5s ease-in-out infinite; }
+  .near { filter: blur(1.4px); animation: boot-float 5s ease-in-out infinite; }
+
+  .m1 { --a: #9ecbff; --b: #2f6dff; --c: #14224d; width: 1.1rem; height: 1.1rem; top: 8%; left: 12%; }
+  .m2 { --a: #ffd0ea; --b: #ff4f9a; --c: #5a1238; width: 0.8rem; height: 0.8rem; top: 14%; right: 18%; animation-delay: -2s; }
+  .m3 { --a: #ffe9a8; --b: #ff9a1a; --c: #6a2e08; width: 0.7rem; height: 0.7rem; top: 11%; left: 62%; animation-delay: -4s; }
+  .m4 { --a: #b8ffd0; --b: #21c46b; --c: #0c3d24; width: 2.4rem; height: 2.4rem; top: 46%; left: -0.4rem; animation-delay: -1s; }
+  .m5 { --a: #ffb0b0; --b: #ff3b3b; --c: #5c1010; width: 1.7rem; height: 1.7rem; top: 52%; right: 4%; animation-delay: -3s; }
+  .m6 { --a: #e7d4ff; --b: #9b5cff; --c: #2d1460; width: 1.35rem; height: 1.35rem; top: 62%; left: 10%; animation-delay: -2.4s; }
+  .m7 { --a: #fff1b0; --b: #ffb703; --c: #6a3a08; width: 4.2rem; height: 4.2rem; bottom: 6%; left: -1.2rem; filter: none; }
+  .m8 { --a: #d7c7ff; --b: #7a4dff; --c: #241048; width: 3.4rem; height: 3.4rem; bottom: 2%; right: -0.8rem; animation-delay: -1.5s; }
+
+  .hero {
+    --a: #c8f4ff;
+    --b: #2ec8ff;
+    --c: #123e86;
+    width: 1.7rem;
+    height: 1.7rem;
+    left: -12%;
+    bottom: 22%;
+    z-index: 3;
+    animation: boot-roll 2.8s cubic-bezier(0.22, 0.7, 0.2, 1) 0.35s both;
+  }
+
+  .boot-logo {
+    position: relative;
+    z-index: 2;
+    width: min(82vw, 460px);
+    aspect-ratio: 1;
+    margin-top: 1vh;
+    background: url("/marbello-loading.png") 50% 44% / 198% auto no-repeat;
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 60%, transparent 78%);
+    mask-image: radial-gradient(circle at 50% 50%, #000 60%, transparent 78%);
+    filter: drop-shadow(0 0 28px rgb(70 160 255 / 0.45));
+    animation: boot-logo-in 0.5s ease both;
+  }
+
+  .boot-ui {
+    position: relative;
+    z-index: 4;
+    width: min(78vw, 420px);
+    animation: boot-ui-in 0.45s ease 0.12s both;
+  }
+
+  .boot-bar {
+    position: relative;
+    height: 1.15rem;
+    padding: 3px;
+    border-radius: 999px;
+    background: #07122a;
+    box-shadow:
+      0 0 0 2px rgb(80 210 255 / 0.85),
+      0 0 18px rgb(80 140 255 / 0.85),
+      0 0 28px rgb(255 70 180 / 0.45);
+  }
+
+  .boot-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2ce8ff 0%, #6d7bff 42%, #ffe14a 78%, #ff9a1a 100%);
+    box-shadow: 0 0 16px rgb(255 190 60 / 0.85);
+  }
+
+  .mimi-mark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #ff4fa3;
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 0.9;
+    letter-spacing: -0.03em;
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.55);
+  }
+
+  .mimi-mark span {
+    color: #ff4fa3;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .boot-orb {
+    position: absolute;
+    top: 50%;
+    width: 1.55rem;
+    height: 1.55rem;
+    margin-top: -0.78rem;
+    margin-left: -0.78rem;
+    filter: drop-shadow(0 6px 8px rgb(255 180 60 / 0.45));
+  }
+
+  .boot-orb-glass {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 28%, #fff, transparent 20%),
+      radial-gradient(circle at 40% 40%, #fff6c2, #f6c431 46%, #b86a08);
+    box-shadow:
+      inset -4px -5px 8px rgb(120 70 0 / 0.35),
+      0 0 12px rgb(255 196 40 / 0.95);
+  }
+
+  .boot-percent,
+  .boot-label,
+  .boot-status {
+    margin: 0;
+    text-align: center;
+  }
+
+  .boot-percent {
+    margin-top: 0.7rem;
+    color: #ffe56a;
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+
+  .boot-label {
+    margin-top: 0.15rem;
+    color: #f4f7ff;
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.42em;
+    text-indent: 0.42em;
+    text-transform: uppercase;
+  }
+
+  .boot-status {
+    margin-top: 0.45rem;
+    color: rgb(214 228 255 / 0.78);
+    font-size: 0.82rem;
+  }
+
+  .boot-leave {
+    animation: boot-out 0.42s ease forwards;
+  }
+
+  .boot-leave .boot-bar {
+    animation: boot-pulse 0.32s ease;
+  }
+
+  @keyframes boot-glow {
+    from { filter: saturate(1) brightness(1); }
+    to { filter: saturate(1.15) brightness(1.08); }
+  }
+
+  @keyframes boot-drift {
+    from { transform: translateX(0); }
+    to { transform: translateX(18%); }
+  }
+
+  @keyframes boot-spark {
+    0%, 100% { transform: translateY(0); opacity: 0.25; }
+    50% { transform: translateY(-10px); opacity: 0.9; }
+  }
+
+  @keyframes boot-float {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50% { transform: translate3d(10px, -14px, 0); }
+  }
+
+  @keyframes boot-roll {
+    0% { transform: translate3d(0, 1.2rem, 0) rotate(0deg); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translate3d(42vw, -6vh, 0) rotate(420deg); opacity: 0; }
+  }
+
+  @keyframes boot-logo-in {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes boot-ui-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes boot-pulse {
+    50% { box-shadow: 0 0 0 2px #fff, 0 0 28px #ffe56a, 0 0 36px #ff4fa3; }
+  }
+
+  @keyframes boot-out {
+    to { opacity: 0; }
+  }
+
+  @media (min-width: 800px) {
+    .boot {
+      padding-top: calc(env(safe-area-inset-top) + 8vh);
+      padding-bottom: calc(env(safe-area-inset-bottom) + 8vh);
+    }
+
+    .boot-logo {
+      width: min(46vh, 520px);
+    }
+
+    .m4 { left: 8%; }
+    .m5 { right: 10%; }
+    .m7 { left: 6%; width: 5.5rem; height: 5.5rem; }
+    .m8 { right: 7%; width: 4.6rem; height: 4.6rem; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .drop-btn {
-      transition: none;
+    .drop-btn,
+    .boot-sky,
+    .boot-trail,
+    .boot-spark,
+    .marble,
+    .boot-logo,
+    .boot-ui,
+    .boot-leave,
+    .boot-leave .boot-bar {
+      animation: none;
     }
   }
 }

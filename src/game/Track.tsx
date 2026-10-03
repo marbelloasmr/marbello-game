@@ -1,5 +1,7 @@
+import { useMemo } from "react"
 import { CuboidCollider, CylinderCollider, RigidBody } from "@react-three/rapier"
-import { TRACK_PIECES, type TrackPiece } from "@/game/trackLayout"
+import { Matrix4, Quaternion, Vector3 } from "three"
+import { START_ZONE, TRACK_PIECES, type TrackPiece } from "@/game/trackLayout"
 import { SURFACE_PHYSICS, type Surface } from "@/physics/materials"
 
 const COLOR: Record<Surface, string> = {
@@ -45,7 +47,7 @@ function Piece({ piece, fancy }: { piece: TrackPiece; fancy: boolean }) {
     return (
       <RigidBody type="fixed" colliders={false} position={piece.position} userData={{ material: piece.material }}>
         <CylinderCollider args={[piece.height / 2, piece.radius]} friction={phys.friction} restitution={phys.restitution} />
-        <mesh castShadow receiveShadow>
+        <mesh name="track-surface" castShadow receiveShadow>
           <cylinderGeometry args={[piece.radius, piece.radius, piece.height, 18]} />
           <meshPhysicalMaterial {...look} />
         </mesh>
@@ -65,7 +67,7 @@ function Piece({ piece, fancy }: { piece: TrackPiece; fancy: boolean }) {
         friction={phys.friction}
         restitution={phys.restitution}
       />
-      <mesh castShadow receiveShadow>
+      <mesh name="track-surface" castShadow receiveShadow>
         <boxGeometry args={piece.size} />
         <meshPhysicalMaterial {...look} />
       </mesh>
@@ -79,6 +81,7 @@ export function Track({ fancy }: { fancy: boolean }) {
       {TRACK_PIECES.map((piece) => (
         <Piece key={piece.id} piece={piece} fancy={fancy} />
       ))}
+      <StartWalls />
       <RigidBody type="fixed" colliders={false} position={[2, -0.12, 3]} userData={{ material: "wood" }}>
         <CuboidCollider args={[16, 0.12, 14]} friction={0.6} restitution={0.05} />
         <mesh receiveShadow>
@@ -86,6 +89,62 @@ export function Track({ fancy }: { fancy: boolean }) {
           <meshStandardMaterial color="#e7d3b0" roughness={0.85} metalness={0.02} />
         </mesh>
       </RigidBody>
+    </group>
+  )
+}
+
+function StartWalls() {
+  const walls = useMemo(() => {
+    const pts = START_ZONE.points
+    const height = 8.2
+    const thick = 0.14
+    const sideOff = 0.5
+    const up = new Vector3(0, 1, 0)
+    const built: { pos: [number, number, number]; quat: [number, number, number, number]; size: [number, number, number] }[] = []
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = new Vector3(...pts[i]!)
+      const b = new Vector3(...pts[i + 1]!)
+      const delta = b.clone().sub(a)
+      const len = delta.length()
+      const dir = delta.multiplyScalar(1 / len)
+      const flat = new Vector3(dir.x, 0, dir.z)
+      if (flat.lengthSq() < 1e-6) continue
+      flat.normalize()
+      const side = new Vector3().crossVectors(up, flat).normalize()
+      const mid = a.clone().add(b).multiplyScalar(0.5)
+      const q = new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(side, up, flat))
+      const quat: [number, number, number, number] = [q.x, q.y, q.z, q.w]
+      for (const sign of [-1, 1] as const) {
+        const p = mid.clone().addScaledVector(side, sign * sideOff)
+        built.push({
+          pos: [p.x, mid.y + height * 0.5 - 0.4, p.z],
+          quat,
+          size: [thick, height, len + 0.2],
+        })
+      }
+    }
+    const a = new Vector3(...pts[0]!)
+    const b = new Vector3(...pts[1]!)
+    const forward = b.clone().sub(a)
+    forward.y = 0
+    forward.normalize()
+    const side = new Vector3().crossVectors(up, forward).normalize()
+    const q = new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(forward, up, side))
+    const back = a.clone().addScaledVector(forward, -0.22)
+    built.push({
+      pos: [back.x, a.y + height * 0.5 - 0.4, back.z],
+      quat: [q.x, q.y, q.z, q.w],
+      size: [thick, height, sideOff * 2 + 0.24],
+    })
+    return built
+  }, [])
+  return (
+    <group>
+      {walls.map((wall, index) => (
+        <RigidBody key={index} type="fixed" colliders={false} position={wall.pos} quaternion={wall.quat} userData={{ silent: true }}>
+          <CuboidCollider args={[wall.size[0] / 2, wall.size[1] / 2, wall.size[2] / 2]} friction={0.35} restitution={0.04} />
+        </RigidBody>
+      ))}
     </group>
   )
 }

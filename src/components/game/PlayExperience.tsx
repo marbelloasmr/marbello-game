@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { Link } from "@tanstack/react-router"
-import { Headphones, Menu, Play, RotateCcw, Trophy, Volume2, VolumeX, Wrench, X, Youtube, Images } from "lucide-react"
+import { Menu, Play, RotateCcw, Trophy, Volume2, VolumeX, Wrench, X, Youtube, Images } from "lucide-react"
 import { brandConfig } from "@/config/brandConfig"
 import { youtubeConfig } from "@/config/youtubeConfig"
 import { MARBLES, type MarbleId } from "@/data/marbleTypes"
 import { ClientCanvas } from "@/components/game/ClientCanvas"
+import { BootScreen } from "@/components/game/BootScreen"
 import { runClock, useGame } from "@/game/state"
+import { sling, subscribeSling } from "@/game/spawn"
+import { SubscriberBonusService } from "@/game/SubscriberBonusService"
 import { trackEvent } from "@/utils/analytics"
 
 const LINKS = [
@@ -17,23 +20,28 @@ const LINKS = [
 ] as const
 
 export function PlayExperience() {
+  const [booting, setBooting] = useState(true)
+  const [cover, setCover] = useState(true)
   return (
     <div className="stage">
       <ClientCanvas />
-      <div className="hud">
+      <div className="hud" hidden={cover}>
         <TopBar />
         <BrandCard />
         <SidePicker />
         <Dock />
         <Results />
       </div>
+      {booting ? <BootScreen onReveal={() => setCover(false)} onDone={() => setBooting(false)} /> : null}
     </div>
   )
 }
 
 function TopBar() {
   const [open, setOpen] = useState(false)
+  const [bonusOpen, setBonusOpen] = useState(false)
   const { sound, toggleSound } = useGame()
+  const verified = useSyncExternalStore(SubscriberBonusService.subscribe, SubscriberBonusService.isVerified, () => false)
 
   return (
     <header className="topbar">
@@ -46,26 +54,65 @@ function TopBar() {
           <NavLink key={item.to} {...item} />
         ))}
       </nav>
-      <div className="relative flex items-center gap-2">
+      <div className="relative flex shrink-0 items-center gap-2">
         <button type="button" className="icon-btn" onClick={toggleSound} aria-pressed={sound} aria-label={sound ? "Sound off" : "Sound on"}>
           {sound ? <Volume2 size={18} /> : <VolumeX size={18} />}
         </button>
-        <a className="yt-btn" href={youtubeConfig.url} target="_blank" rel="noreferrer" aria-label={youtubeConfig.channelLabel} onClick={() => trackEvent("youtube_clicked", { place: "nav" })}>
-          <Youtube size={18} />
-          <span className="hidden sm:inline">{youtubeConfig.channelLabel}</span>
-        </a>
+        <div className="yt-anchor">
+          <a className="yt-btn" href={youtubeConfig.url} target="_blank" rel="noreferrer" aria-label={youtubeConfig.channelLabel} onClick={() => trackEvent("youtube_clicked", { place: "nav" })}>
+            <Youtube size={18} />
+            <span className="hidden sm:inline">{youtubeConfig.channelLabel}</span>
+          </a>
+          <button type="button" className="yt-bubble" onClick={() => { if (!verified) setBonusOpen(true) }}>
+            YouTube bonus {verified ? "2×" : "1×"}
+          </button>
+        </div>
         <button type="button" className="menu-btn" aria-expanded={open} aria-label={open ? "Close menu" : "Open menu"} onClick={() => setOpen((v) => !v)}>
           {open ? <X size={18} /> : <Menu size={18} />}
         </button>
-        {open ? (
-          <nav className="glass menu-sheet hit" aria-label="Mobile">
-            {LINKS.map((item) => (
-              <NavLink key={item.to} {...item} onPick={() => setOpen(false)} />
-            ))}
-          </nav>
-        ) : null}
+          {open ? (
+            <nav className="glass menu-sheet hit" aria-label="Mobile">
+              {LINKS.map((item) => (
+                <NavLink key={item.to} {...item} onPick={() => setOpen(false)} />
+              ))}
+            </nav>
+          ) : null}
       </div>
+      {bonusOpen && !verified ? <BonusPopup onClose={() => setBonusOpen(false)} /> : null}
     </header>
+  )
+}
+
+function BonusPopup({ onClose }: { onClose: () => void }) {
+  const [awaiting, setAwaiting] = useState(false)
+  return (
+    <div className="bonus-pop-back hit" onClick={onClose}>
+      <div className="glass bonus-pop" role="dialog" aria-labelledby="bonus-title" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="sub-close" onClick={onClose} aria-label="Close">
+          <X size={16} />
+        </button>
+        <h2 id="bonus-title">YouTube bonus</h2>
+        <p>Subscribe for 2× points</p>
+        {awaiting ? (
+          <button type="button" className="yt-btn" onClick={() => SubscriberBonusService.activatePrototypeBonus()}>
+            I subscribed — activate 2×
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="yt-btn"
+            onClick={() => {
+              window.open(youtubeConfig.url, "_blank", "noopener,noreferrer")
+              trackEvent("youtube_clicked", { place: "subscriber_bonus" })
+              setAwaiting(true)
+            }}
+          >
+            <Youtube size={18} />
+            2× points for YouTube subscribers
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -132,22 +179,30 @@ function BrandCard() {
   )
 }
 function Dock() {
-  const { phase, drop } = useGame()
+  const { phase, drop, again } = useGame()
+  const aiming = useSyncExternalStore(subscribeSling, () => sling.armed, () => false)
   if (phase === "done" || phase === "missed") return null
   return (
     <div className="dock">
+      {phase === "running" ? <LiveScore /> : null}
       {phase === "running" ? <LiveTime /> : null}
       {phase === "ready" ? (
         <p className="hint">
-          <Headphones size={16} />
-          Headphones recommended
+          {aiming ? "Short pull, soft shot · long pull, hard shot" : "Drag freely on the start ramp · pinch or scroll to zoom"}
         </p>
       ) : null}
       <Swatches layout="row" />
-      <button type="button" className="drop-btn hit" data-testid="drop-marble" onClick={drop} disabled={phase === "running"}>
-        <Play size={20} fill="currentColor" />
-        {phase === "running" ? "Rolling" : "Drop marble"}
-      </button>
+      {phase === "running" ? (
+        <button type="button" className="drop-btn hit" onClick={again}>
+          <RotateCcw size={20} />
+          Start over
+        </button>
+      ) : (
+        <button type="button" className="drop-btn hit" data-testid="drop-marble" onClick={drop}>
+          <Play size={20} fill="currentColor" />
+          Drop marble
+        </button>
+      )}
     </div>
   )
 }
@@ -166,17 +221,37 @@ function LiveTime() {
   return <p className="glass live-pill hit">{label}s</p>
 }
 
+function LiveScore() {
+  const { score, gems, gemTotal, combo } = useGame()
+  return (
+    <p className="glass live-pill score-pill">
+      <span>
+        {gems}/{gemTotal}
+      </span>
+      <strong>{score.toLocaleString("en-US")}</strong>
+      {combo > 1 ? <em>x{combo}</em> : null}
+    </p>
+  )
+}
+
 function Results() {
-  const { phase, seconds, impacts, again, marbleId, selectMarble } = useGame()
+  const { phase, seconds, score, gems, gemTotal, best, again, marbleId, selectMarble } = useGame()
+  const verified = useSyncExternalStore(SubscriberBonusService.subscribe, SubscriberBonusService.isVerified, () => false)
+  const [awaiting, setAwaiting] = useState(false)
   if (phase !== "done" && phase !== "missed") return null
   const next = MARBLES[(MARBLES.findIndex((m) => m.id === marbleId) + 1) % MARBLES.length]!
   return (
     <section className="glass results hit" aria-live="polite">
       <h2>{phase === "done" ? "Run complete" : "Missed the bowl"}</h2>
       <p>
+        Score {score.toLocaleString("en-US")}
+        <span> · </span>
+        Gems {gems}/{gemTotal}
+      </p>
+      <p>
         Time {seconds == null ? "—" : `${seconds.toFixed(2)} s`}
         <span> · </span>
-        Impacts {impacts}
+        Best {best.toLocaleString("en-US")}
       </p>
       <div className="result-actions">
         <button type="button" className="solid-btn" onClick={again}>
@@ -190,6 +265,24 @@ function Results() {
           Build your own
         </Link>
       </div>
+      {verified ? null : awaiting ? (
+        <button type="button" className="yt-btn mt-3 inline-flex" onClick={() => SubscriberBonusService.activatePrototypeBonus()}>
+          I subscribed — activate 2×
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="yt-btn mt-3 inline-flex"
+          onClick={() => {
+            window.open(youtubeConfig.url, "_blank", "noopener,noreferrer")
+            trackEvent("youtube_clicked", { place: "subscriber_bonus" })
+            setAwaiting(true)
+          }}
+        >
+          <Youtube size={18} />
+          2× points for YouTube subscribers
+        </button>
+      )}
       <div className="yt-note">
         <p className="font-display text-ink">{youtubeConfig.afterRunTitle}</p>
         <p>{youtubeConfig.afterRunBody}</p>

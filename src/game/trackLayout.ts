@@ -270,6 +270,14 @@ const spawn = spawnFloor
 
 export const START_POSITION: V3 = [spawn.x, spawn.y + lift, spawn.z]
 
+/** First ramp only. Placement and the slingshot pull stay inside this chute. */
+export const START_ZONE = {
+  points: acrylicPts.map((p) => [p[0], p[1] + lift, p[2]] as V3),
+  halfWidth: 0.26,
+  minClear: gameConfig.marbleRadius + 0.03,
+  maxRise: 1.65,
+}
+
 const bowlLifted = raised(bowlCenter)
 export const FINISH_POSITION: V3 = [bowlLifted[0], bowlLifted[1] + 0.36, bowlLifted[2]]
 
@@ -280,6 +288,70 @@ export const ZONES = {
   funnel: raised(funnelMid),
   bowl: bowlLifted,
 }
+
+const GEM_COLORS = ["#3ec6ff", "#1a32f0", "#ff4fa3", "#d22ad8", "#ff9a1a", "#22c41c"]
+
+export type GemSpot = { id: string; position: V3; color: string; golden?: boolean }
+export type GlassSpot = { id: string; position: V3; quaternion: [number, number, number, number]; color: string }
+
+function spotsOn(points: V3[], id: string, marks: number[], hover = 0.22): GemSpot[] {
+  return marks.map((t, index) => {
+    const scaled = t * (points.length - 1)
+    const i = Math.min(points.length - 2, Math.floor(scaled))
+    const f = scaled - i
+    const a = new Vector3(...points[i]!)
+    const b = new Vector3(...points[i + 1]!)
+    const dir = b.clone().sub(a)
+    const len = dir.length() || 1
+    dir.multiplyScalar(1 / len)
+    const { up } = qOf(dir)
+    const p = a.clone().lerp(b, f).addScaledVector(up, hover)
+    return {
+      id: `${id}-${index}`,
+      position: raised([p.x, p.y, p.z]),
+      color: GEM_COLORS[(index + id.length) % GEM_COLORS.length]!,
+    }
+  })
+}
+
+function plateOn(points: V3[], id: string, t: number, color: string): GlassSpot {
+  const scaled = t * (points.length - 1)
+  const i = Math.min(points.length - 2, Math.floor(scaled))
+  const f = scaled - i
+  const a = new Vector3(...points[i]!)
+  const b = new Vector3(...points[i + 1]!)
+  const dir = b.clone().sub(a)
+  dir.normalize()
+  const { q, up } = qOf(dir)
+  const p = a.clone().lerp(b, f).addScaledVector(up, 0.28)
+  return { id, position: raised([p.x, p.y, p.z]), quaternion: tupleQ(q), color }
+}
+
+const goldenAt = (() => {
+  const spot = spotsOn(spiralPts, "gold", [0.62], 0.28)[0]!
+  return { ...spot, id: "golden", color: "#f6c431", golden: true as const }
+})()
+
+export const MARBLE_GEMS: GemSpot[] = [
+  ...spotsOn(acrylicPts, "acrylic", [0.55, 0.82]),
+  ...spotsOn(woodPts, "wood", [0.35, 0.72]),
+  ...spotsOn(metalPts, "metal", [0.28, 0.62]),
+  ...spotsOn(landingPts, "land", [0.4, 0.78]),
+  ...spotsOn(pegPts, "pegs", [0.22, 0.48, 0.74]),
+  ...spotsOn(spiralPts, "spiral", [0.16, 0.34, 0.52, 0.78]),
+  ...spotsOn(tubePts, "tube", [0.4, 0.75]),
+  ...spotsOn([mouth, lip], "funnel", [0.42]),
+  goldenAt,
+]
+
+export const GLASS_TARGETS: GlassSpot[] = [
+  plateOn(woodPts, "glass-wood", 0.82, "#ff4fa3"),
+  plateOn(metalPts, "glass-metal", 0.58, "#3ec6ff"),
+  plateOn(landingPts, "glass-land", 0.7, "#d22ad8"),
+  plateOn(pegPts, "glass-pegs", 0.4, "#ffb020"),
+  plateOn(tubePts, "glass-tube", 0.55, "#1a32f0"),
+  plateOn([mouth, lip], "glass-funnel", 0.38, "#7af0ff"),
+]
 
 export const CAMERA_HOME = {
   position: [1.5, 8.4, 20.8] as V3,

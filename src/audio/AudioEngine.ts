@@ -114,6 +114,53 @@ export class AudioEngine {
     }
   }
 
+  playGem(x: number, golden = false) {
+    if (!this.enabled) return
+    const ctx = this.ensure()
+    if (!ctx || ctx.state !== "running") return
+    const t = ctx.currentTime
+    const gain = ctx.createGain()
+    const pan = ctx.createStereoPanner()
+    pan.pan.value = Math.max(-0.85, Math.min(0.85, x / 9))
+    gain.connect(pan)
+    pan.connect(this.master!)
+    const osc = ctx.createOscillator()
+    osc.type = "sine"
+    const f = (golden ? 1480 : 1860 + Math.random() * 280)
+    osc.frequency.setValueAtTime(f, t)
+    osc.frequency.exponentialRampToValueAtTime(f * 1.35, t + 0.08)
+    osc.connect(gain)
+    gain.gain.setValueAtTime(0.0001, t)
+    gain.gain.exponentialRampToValueAtTime(golden ? 0.16 : 0.09, t + 0.012)
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16)
+    osc.start(t)
+    osc.stop(t + 0.18)
+  }
+
+  playGlassBreak(x: number) {
+    if (!this.enabled) return
+    const ctx = this.ensure()
+    if (!ctx || ctx.state !== "running") return
+    const t = ctx.currentTime
+    const gain = ctx.createGain()
+    const pan = ctx.createStereoPanner()
+    pan.pan.value = Math.max(-0.85, Math.min(0.85, x / 9))
+    gain.connect(pan)
+    pan.connect(this.master!)
+    const osc = ctx.createOscillator()
+    osc.type = "triangle"
+    const f = 2400 + Math.random() * 500
+    osc.frequency.setValueAtTime(f, t)
+    osc.frequency.exponentialRampToValueAtTime(f * 0.45, t + 0.12)
+    osc.connect(gain)
+    gain.gain.setValueAtTime(0.0001, t)
+    gain.gain.exponentialRampToValueAtTime(0.12, t + 0.008)
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2)
+    osc.start(t)
+    osc.stop(t + 0.22)
+    this.noiseBurst(ctx, gain, t, 0.06, 3200, 0.2)
+  }
+
   private noiseBurst(ctx: AudioContext, destination: AudioNode, t: number, dur: number, freq: number, loud: number) {
     const length = Math.floor(ctx.sampleRate * dur)
     const buffer = ctx.createBuffer(1, length, ctx.sampleRate)

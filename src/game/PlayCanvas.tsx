@@ -5,6 +5,8 @@ import { ACESFilmicToneMapping } from "three"
 import { gameConfig } from "@/config/gameConfig"
 import { CameraRig } from "@/game/CameraRig"
 import { FinishSensor, Marble } from "@/game/Marble"
+import { MarblePlacer } from "@/game/MarblePlacer"
+import { ScorePickups } from "@/game/ScorePickups"
 import { Track } from "@/game/Track"
 import { CAMERA_HOME } from "@/game/trackLayout"
 import { trackEvent } from "@/utils/analytics"
@@ -63,12 +65,14 @@ export function PlayCanvas() {
           updatePriority={-2}
         >
           <Track fancy={fancy} />
+          <ScorePickups />
           <Marble fancy={fancy} />
           <FinishSensor />
           <Studio />
         </Physics>
       </Suspense>
       <CameraRig />
+      <MarblePlacer />
     </Canvas>
   )
 }

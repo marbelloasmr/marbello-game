@@ -1,8 +1,9 @@
 import { useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import { PerspectiveCamera, Vector3 } from "three"
-import { CAMERA_HOME } from "@/game/trackLayout"
+import { CAMERA_HOME, START_ZONE } from "@/game/trackLayout"
 import { marblePose } from "@/game/marblePose"
+import { previewZoom } from "@/game/spawn"
 import { useGame } from "@/game/state"
 
 export const cameraShake = { current: 0 }
@@ -46,14 +47,49 @@ export function CameraRig() {
 
     if (!filming) {
       primed.current = false
-      const resp = reduce ? 5 : 2.6
-      rig.current.x = damp(rig.current.x, HOME_POS.x, resp, dt)
-      rig.current.y = damp(rig.current.y, HOME_POS.y, resp, dt)
-      rig.current.z = damp(rig.current.z, HOME_POS.z, resp, dt)
-      look.current.x = damp(look.current.x, HOME_LOOK.x, resp, dt)
-      look.current.y = damp(look.current.y, HOME_LOOK.y, resp, dt)
-      look.current.z = damp(look.current.z, HOME_LOOK.z, resp, dt)
-      fov.current = damp(fov.current, portrait ? 42 : 36, 2.2, dt)
+      const resp = reduce ? 6 : 5
+      const homeX = portrait ? -0.4 : HOME_POS.x
+      const homeY = portrait ? 8.6 : HOME_POS.y
+      const homeZ = portrait ? 38 : HOME_POS.z
+      const lookX = portrait ? -1.6 : HOME_LOOK.x
+      const lookY = portrait ? 4.8 : HOME_LOOK.y
+      const lookZ = portrait ? 0.6 : HOME_LOOK.z
+      const dx = homeX - lookX
+      const dy = homeY - lookY
+      const dz = homeZ - lookZ
+      const len = Math.hypot(dx, dy, dz) || 1
+      const zoom = clamp(previewZoom.distance, 0.34, 1.15)
+      let aimX = lookX
+      let aimY = lookY
+      let aimZ = lookZ
+      let dist = len * zoom
+      if (previewZoom.zone) {
+        const mid = START_ZONE.points[1] ?? START_ZONE.points[0]!
+        aimX = mid[0]
+        aimY = mid[1] + 0.5
+        aimZ = mid[2]
+        const close = portrait ? 6.4 : 6
+        const framed = portrait ? 9 : 8
+        if (zoom <= 0.42) {
+          const t = (zoom - 0.34) / (0.42 - 0.34)
+          dist = close + t * (framed - close)
+        } else {
+          const t = (Math.min(zoom, 1) - 0.42) / (1 - 0.42)
+          dist = framed + t * (len - framed)
+        }
+      } else if (marblePose.on) {
+        const focusBlend = clamp(1 - zoom, 0, 0.82)
+        aimX = lookX + (marblePose.x - lookX) * focusBlend
+        aimY = lookY + (marblePose.y - lookY) * focusBlend * 0.7
+        aimZ = lookZ + (marblePose.z - lookZ) * focusBlend
+      }
+      rig.current.x = damp(rig.current.x, aimX + (dx / len) * dist, resp, dt)
+      rig.current.y = damp(rig.current.y, aimY + (dy / len) * dist, resp, dt)
+      rig.current.z = damp(rig.current.z, aimZ + (dz / len) * dist, resp, dt)
+      look.current.x = damp(look.current.x, aimX, resp, dt)
+      look.current.y = damp(look.current.y, aimY, resp, dt)
+      look.current.z = damp(look.current.z, aimZ, resp, dt)
+      fov.current = damp(fov.current, portrait ? 48 : 36, 2.2, dt)
       filteredPos.current.copy(look.current)
       filteredVel.current.set(0, 0, 0)
       camera.position.copy(rig.current)

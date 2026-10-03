@@ -1,11 +1,12 @@
 import { useMemo, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import { BallCollider, CuboidCollider, RigidBody, type RapierRigidBody } from "@react-three/rapier"
-import { CanvasTexture, SRGBColorSpace } from "three"
+import { CanvasTexture, SRGBColorSpace, type MeshBasicMaterial } from "three"
 import { marbleById } from "@/data/marbleTypes"
 import { getAudio } from "@/audio/AudioEngine"
 import { FINISH_POSITION, START_POSITION } from "@/game/trackLayout"
 import { marblePose } from "@/game/marblePose"
+import { marbleApi, sling, spawn } from "@/game/spawn"
 import { useGame } from "@/game/state"
 import { gameConfig } from "@/config/gameConfig"
 import type { Surface } from "@/physics/materials"
@@ -47,6 +48,7 @@ function paintTexture(mode: "speckle" | "swirl", a: string, b: string) {
 
 export function Marble({ fancy }: { fancy: boolean }) {
   const body = useRef<RapierRigidBody>(null)
+  const ring = useRef<MeshBasicMaterial>(null)
   const { phase, marbleId, runId, registerImpact, miss } = useGame()
   const marble = marbleById(marbleId)
   const live = phase === "running" || phase === "done"
@@ -55,6 +57,24 @@ export function Marble({ fancy }: { fancy: boolean }) {
     if (marble.speckle) return paintTexture("speckle", marble.color, marble.accent)
     return null
   }, [marble])
+
+  const placed = spawn.custom
+  const start = placed ? ([spawn.x, spawn.y, spawn.z] as const) : START_POSITION
+  const kickedRun = useRef("")
+
+  useFrame(() => {
+    const current = body.current
+    if (!current || phase !== "running") return
+    const token = String(runId)
+    if (kickedRun.current === token) return
+    if (!spawn.custom) {
+      kickedRun.current = token
+      return
+    }
+    current.setTranslation({ x: spawn.x, y: spawn.y, z: spawn.z }, true)
+    current.setLinvel({ x: spawn.vx, y: spawn.vy, z: spawn.vz }, true)
+    kickedRun.current = token
+  }, -3)
 
   useFrame(() => {
     const current = body.current
@@ -74,6 +94,8 @@ export function Marble({ fancy }: { fancy: boolean }) {
     marblePose.vy = v.y
     marblePose.vz = v.z
     marblePose.on = true
+    marbleApi.body = current
+    if (ring.current) ring.current.color.set(sling.armed ? "#ffe56a" : "#ff4fa3")
     if (import.meta.env.DEV) {
       const w = window as unknown as { __marble?: { x: number; y: number; z: number; phase: string } }
       w.__marble = { x: marblePose.x, y: marblePose.y, z: marblePose.z, phase }
@@ -86,7 +108,7 @@ export function Marble({ fancy }: { fancy: boolean }) {
       ref={body}
       key={`${runId}-${marbleId}-${live ? "go" : "hold"}`}
       name="marble-body"
-      position={START_POSITION}
+      position={[start[0], start[1], start[2]]}
       colliders={false}
       type={live ? "dynamic" : "fixed"}
       ccd
@@ -95,6 +117,7 @@ export function Marble({ fancy }: { fancy: boolean }) {
       linearDamping={0.08}
       angularDamping={0.08}
       onCollisionEnter={(payload) => {
+        if (payload.other.rigidBodyObject?.userData?.silent) return
         const material = payload.other.rigidBodyObject?.userData?.material as Surface | undefined
         if (!material) return
         const velocity = payload.target.rigidBody?.linvel()
@@ -122,6 +145,18 @@ export function Marble({ fancy }: { fancy: boolean }) {
           attenuationDistance={0.45}
         />
       </mesh>
+      {live ? null : (
+        <group>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.46, 0.028, 8, 28]} />
+            <meshBasicMaterial ref={ring} color="#ff4fa3" transparent opacity={0.9} />
+          </mesh>
+          <mesh name="place-handle">
+            <sphereGeometry args={[1.2, 12, 12]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
+        </group>
+      )}
     </RigidBody>
   )
 }

@@ -10,7 +10,7 @@ function VideosPage() {
   return (
     <SoonPage
       title="Watch a real marble run"
-      body="The site sends you to the Marbello game videos from one setting. It does not invent view counts or a video library."
+      body="The site sends you to the Marbello ASMR channel from one setting. It does not invent view counts or a video library."
       youtube
     />
   )

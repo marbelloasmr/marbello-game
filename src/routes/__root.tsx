@@ -13,6 +13,11 @@ export const Route = createRootRoute({
       { name: "description", content: brandConfig.description },
       { name: "theme-color", content: "#b9e6fb" },
     ],
+    scripts: [
+      {
+        children: `(function(){if(typeof Node!=="function")return;var ib=Node.prototype.insertBefore;Node.prototype.insertBefore=function(n,r){if(r&&r.parentNode!==this)return n;return ib.call(this,n,r)};var rc=Node.prototype.removeChild;Node.prototype.removeChild=function(c){if(c.parentNode!==this)return c;return rc.call(this,c)}})();`,
+      },
+    ],
     links: [
       { rel: "icon", type: "image/png", href: "/favicon.png" },
       { rel: "stylesheet", href: appCss },

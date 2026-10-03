@@ -3,7 +3,7 @@ import { SoonPage } from "@/components/game/SoonPage"
 
 export const Route = createFileRoute("/challenge")({
   component: ChallengePage,
-  head: () => ({ meta: [{ title: "Daily challenge — MARBELLO ASMR" }] }),
+  head: () => ({ meta: [{ title: "Daily challenge — Marbello game" }] }),
 })
 
 function ChallengePage() {

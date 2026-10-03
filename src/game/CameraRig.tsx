@@ -1,74 +1,177 @@
 import { useRef } from "react"
-import { useFrame, useThree } from "@react-three/fiber"
-import { Vector3 } from "three"
-import { CAMERA_HOME, ZONES } from "@/game/trackLayout"
+import { useFrame } from "@react-three/fiber"
+import { PerspectiveCamera, Vector3 } from "three"
+import { CAMERA_HOME } from "@/game/trackLayout"
 import { marblePose } from "@/game/marblePose"
 import { useGame } from "@/game/state"
 
 export const cameraShake = { current: 0 }
 
+const HOME_POS = new Vector3(...CAMERA_HOME.position)
+const HOME_LOOK = new Vector3(...CAMERA_HOME.target)
+
+function damp(current: number, target: number, responsiveness: number, dt: number) {
+  const alpha = 1 - Math.exp(-responsiveness * dt)
+  return current + (target - current) * alpha
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
 export function CameraRig() {
-  const { camera } = useThree()
   const look = useRef(new Vector3(...CAMERA_HOME.target))
-  const homePos = useRef(new Vector3(...CAMERA_HOME.position))
-  const homeLook = useRef(new Vector3(...CAMERA_HOME.target))
-  const marble = useRef(new Vector3())
-  const bowl = useRef(new Vector3(...ZONES.bowl))
-  const funnel = useRef(new Vector3(...ZONES.funnel))
-  const spiral = useRef(new Vector3(...ZONES.spiral))
+  const rig = useRef(new Vector3(...CAMERA_HOME.position))
+  const filteredPos = useRef(new Vector3(...CAMERA_HOME.target))
+  const filteredVel = useRef(new Vector3())
+  const aimDir = useRef(new Vector3(1, 0, 0))
+  const desiredLook = useRef(new Vector3())
+  const desiredPos = useRef(new Vector3())
+  const ndc = useRef(new Vector3())
+  const fov = useRef(36)
+  const distSm = useRef(8)
+  const liftSm = useRef(3)
+  const primed = useRef(false)
   const { phase } = useGame()
   const reduce =
     typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
-  useFrame((_, delta) => {
+  // Priority 0 runs after physics (-2) and the marble pose copy (-1).
+  // A positive priority would disable R3F's render loop, leaving only the HUD.
+  useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05)
-    const pos = homePos.current
-    const aim = homeLook.current
-    let tx = pos.x
-    let ty = pos.y
-    let tz = pos.z
-    let lx = aim.x
-    let ly = aim.y
-    let lz = aim.z
-    if ((phase === "running" || phase === "done") && marblePose.on) {
-      const p = marble.current.set(marblePose.x, marblePose.y, marblePose.z)
-      if (p.distanceTo(bowl.current) < 1.9) {
-        tx = p.x + 1.15
-        ty = p.y + 1.85
-        tz = p.z + 1.55
-      } else if (p.distanceTo(funnel.current) < 2.1) {
-        tx = p.x + 0.35
-        ty = p.y + 2.5
-        tz = p.z + 1.7
-      } else if (p.distanceTo(spiral.current) < 2.4) {
-        tx = p.x + 2.3
-        ty = p.y + 2.35
-        tz = p.z + 2.2
-      } else {
-        tx = p.x - 1.35
-        ty = p.y + 1.7
-        tz = p.z + 2.55
+    const camera = state.camera as PerspectiveCamera
+    const portrait = state.size.height > state.size.width
+    const filming = (phase === "running" || phase === "done") && marblePose.on
+
+    if (!filming) {
+      primed.current = false
+      const resp = reduce ? 5 : 2.6
+      rig.current.x = damp(rig.current.x, HOME_POS.x, resp, dt)
+      rig.current.y = damp(rig.current.y, HOME_POS.y, resp, dt)
+      rig.current.z = damp(rig.current.z, HOME_POS.z, resp, dt)
+      look.current.x = damp(look.current.x, HOME_LOOK.x, resp, dt)
+      look.current.y = damp(look.current.y, HOME_LOOK.y, resp, dt)
+      look.current.z = damp(look.current.z, HOME_LOOK.z, resp, dt)
+      fov.current = damp(fov.current, portrait ? 42 : 36, 2.2, dt)
+      filteredPos.current.copy(look.current)
+      filteredVel.current.set(0, 0, 0)
+      camera.position.copy(rig.current)
+      camera.up.set(0, 1, 0)
+      camera.lookAt(look.current)
+      if (Math.abs(camera.fov - fov.current) > 0.04) {
+        camera.fov = fov.current
+        camera.updateProjectionMatrix()
       }
-      lx = p.x
-      ly = p.y
-      lz = p.z
-    }
-    const k = 1 - Math.pow(phase === "ready" ? 0.08 : 0.045, dt)
-    camera.position.x += (tx - camera.position.x) * k
-    camera.position.y += (ty - camera.position.y) * k
-    camera.position.z += (tz - camera.position.z) * k
-    look.current.x += (lx - look.current.x) * k
-    look.current.y += (ly - look.current.y) * k
-    look.current.z += (lz - look.current.z) * k
-    camera.lookAt(look.current)
-    if (!reduce && cameraShake.current > 0.001) {
-      camera.position.x += (Math.random() - 0.5) * cameraShake.current
-      camera.position.y += (Math.random() - 0.5) * cameraShake.current
-      cameraShake.current *= 0.86
-    } else {
       cameraShake.current = 0
+      return
     }
-  })
+
+    if (!primed.current) {
+      filteredPos.current.set(marblePose.x, marblePose.y, marblePose.z)
+      filteredVel.current.set(marblePose.vx, marblePose.vy, marblePose.vz)
+      primed.current = true
+    }
+
+    // Low-pass the physics. Impacts rattle velocity every frame; the rig should not.
+    const velFollow = 1.8
+    filteredVel.current.x = damp(filteredVel.current.x, marblePose.vx, velFollow, dt)
+    filteredVel.current.y = damp(filteredVel.current.y, marblePose.vy, velFollow, dt)
+    filteredVel.current.z = damp(filteredVel.current.z, marblePose.vz, velFollow, dt)
+    const svx = filteredVel.current.x
+    const svy = filteredVel.current.y
+    const svz = filteredVel.current.z
+    const speed = Math.hypot(svx, svy, svz)
+    const horiz = Math.hypot(svx, svz)
+    const speedN = clamp(speed / 7, 0, 1)
+    const dropAmt = clamp((-svy - 0.45) / 2.4, 0, 1)
+    const fastAmt = clamp((-svy - 1.6) / 2.2, 0, 1)
+
+    camera.updateMatrixWorld()
+    ndc.current.set(marblePose.x, marblePose.y, marblePose.z).project(camera)
+    const nx = Number.isFinite(ndc.current.x) ? ndc.current.x : 0
+    const ny = Number.isFinite(ndc.current.y) ? ndc.current.y : 0
+    const behind = !Number.isFinite(ndc.current.z) || ndc.current.z < 0 || ndc.current.z > 1
+    const edge = Math.max(Math.abs(nx), Math.abs(ny))
+    const edgePush = behind ? 1 : clamp((edge - 0.66) / 0.28, 0, 1)
+
+    const posFollowX = 3.2 + edgePush * 3.5
+    const posFollowY = 4.8 + fastAmt * 2.4 + edgePush * 3
+    filteredPos.current.x = damp(filteredPos.current.x, marblePose.x, posFollowX, dt)
+    filteredPos.current.y = damp(filteredPos.current.y, marblePose.y, posFollowY, dt)
+    filteredPos.current.z = damp(filteredPos.current.z, marblePose.z, posFollowX, dt)
+
+    let lookT = (portrait ? 0.22 : 0.16) + speedN * 0.1 + fastAmt * (portrait ? 0.1 : 0.06)
+    if (reduce) lookT *= 0.5
+    lookT *= 1 - edgePush * 0.45
+    const posT = lookT * 0.35
+
+    if (horiz > 0.65) {
+      aimDir.current.x = damp(aimDir.current.x, svx / horiz, 1.6, dt)
+      aimDir.current.z = damp(aimDir.current.z, svz / horiz, 1.6, dt)
+    }
+
+    const leadScale = 1 - edgePush * 0.65
+    let leadX = svx * lookT * leadScale
+    let leadY = svy * lookT * leadScale
+    let leadZ = svz * lookT * leadScale
+    const leadLen = Math.hypot(leadX, leadY, leadZ)
+    const leadCap = 1.15 + fastAmt * 0.7
+    if (leadLen > leadCap) {
+      const s = leadCap / leadLen
+      leadX *= s
+      leadY *= s
+      leadZ *= s
+    }
+
+    const anchor = filteredPos.current
+    const ahead = (portrait ? 0.42 : 0.28) * leadScale
+    desiredLook.current.set(
+      anchor.x + leadX + aimDir.current.x * ahead,
+      anchor.y + leadY - dropAmt * (portrait ? 0.85 : 0.42),
+      anchor.z + leadZ + aimDir.current.z * 0.12 * leadScale,
+    )
+
+    let dist = (portrait ? 8.2 : 8.8) + speedN * 1.3 + fastAmt * (portrait ? 1.1 : 0.6)
+    if (edgePush > 0.2) dist += 0.8 * edgePush
+    dist = clamp(dist, portrait ? 7.4 : 8, portrait ? 11.6 : 10.8)
+    let lift = (portrait ? 3.05 : 3.35) + fastAmt * 0.35
+    distSm.current = damp(distSm.current, dist, 1.5, dt)
+    liftSm.current = damp(liftSm.current, lift, 1.5, dt)
+
+    desiredPos.current.set(
+      anchor.x + svx * posT,
+      anchor.y + svy * posT + liftSm.current,
+      anchor.z + distSm.current,
+    )
+    const minZ = anchor.z + 5.6
+    if (desiredPos.current.z < minZ) desiredPos.current.z = minZ
+
+    let resp = reduce ? 4.2 : 2.7 + speedN * 0.8 + fastAmt * 1.1 + edgePush * 2.4
+    rig.current.x = damp(rig.current.x, desiredPos.current.x, resp, dt)
+    rig.current.y = damp(rig.current.y, desiredPos.current.y, resp + fastAmt * 1.2, dt)
+    rig.current.z = damp(rig.current.z, desiredPos.current.z, resp, dt)
+    const lookResp = resp + 0.3
+    look.current.x = damp(look.current.x, desiredLook.current.x, lookResp, dt)
+    look.current.y = damp(look.current.y, desiredLook.current.y, lookResp, dt)
+    look.current.z = damp(look.current.z, desiredLook.current.z, lookResp, dt)
+
+    const fovTarget = reduce
+      ? portrait
+        ? 42
+        : 36
+      : (portrait ? 42 : 35.5) + speedN * 1.6 + fastAmt * 1
+    fov.current = damp(fov.current, fovTarget, 1.1 + edgePush, dt)
+
+    camera.position.copy(rig.current)
+    camera.up.set(0, 1, 0)
+    camera.lookAt(look.current)
+    if (Math.abs(camera.fov - fov.current) > 0.05) {
+      camera.fov = fov.current
+      camera.updateProjectionMatrix()
+    }
+    cameraShake.current = 0
+  }, 0)
 
   return null
 }

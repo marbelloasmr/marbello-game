@@ -86,10 +86,41 @@
     padding: 0.7rem 0.7rem 0;
   }
 
+  .code-banner {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    margin: 0.55rem 0.7rem 0 auto;
+    width: fit-content;
+    min-height: 2.75rem;
+    padding: 0.45rem 1rem;
+    border-radius: 999px;
+    background: var(--color-yellow);
+    color: var(--color-ink);
+    font-family: var(--font-display);
+    font-weight: 650;
+    text-decoration: none;
+    box-shadow: 0 8px 24px rgb(255 183 3 / 0.45);
+  }
+
   .logo-link {
     display: flex;
+    align-items: center;
+    gap: 0.55rem;
     pointer-events: auto;
     border-radius: 999px;
+    color: var(--color-ink);
+    text-decoration: none;
+  }
+
+  .logo-name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
   }
 
   .logo-mark {

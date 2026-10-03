@@ -1,6 +1,6 @@
 {
-  "name": "marbello-asmr",
-  "private": false,
+  "name": "marbello-game",
+  "private": true,
   "sideEffects": false,
   "type": "module",
   "overrides": {

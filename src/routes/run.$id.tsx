@@ -3,7 +3,7 @@ import { brandConfig } from "@/config/brandConfig"
 
 export const Route = createFileRoute("/run/$id")({
   component: SharedRunPage,
-  head: () => ({ meta: [{ title: "Shared run — MARBELLO ASMR" }] }),
+  head: () => ({ meta: [{ title: "Shared run — Marbello game" }] }),
 })
 
 function SharedRunPage() {
@@ -13,6 +13,7 @@ function SharedRunPage() {
       <header className="topbar">
         <Link to="/" className="logo-link" aria-label={brandConfig.name}>
           <img src={brandConfig.logo} alt="" className="logo-mark" />
+          <span className="logo-name">{brandConfig.name}</span>
         </Link>
       </header>
       <main className="glass page-main">

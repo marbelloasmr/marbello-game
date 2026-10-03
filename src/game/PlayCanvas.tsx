@@ -60,6 +60,7 @@ export function PlayCanvas() {
           timeStep={1 / 60}
           numSolverIterations={8}
           maxCcdSubsteps={4}
+          updatePriority={-2}
         >
           <Track fancy={fancy} />
           <Marble fancy={fancy} />

@@ -60,19 +60,26 @@ export function Marble({ fancy }: { fancy: boolean }) {
     const current = body.current
     if (!current) {
       marblePose.on = false
+      marblePose.vx = 0
+      marblePose.vy = 0
+      marblePose.vz = 0
       return
     }
     const p = current.translation()
+    const v = current.linvel()
     marblePose.x = p.x
     marblePose.y = p.y
     marblePose.z = p.z
+    marblePose.vx = v.x
+    marblePose.vy = v.y
+    marblePose.vz = v.z
     marblePose.on = true
     if (import.meta.env.DEV) {
       const w = window as unknown as { __marble?: { x: number; y: number; z: number; phase: string } }
       w.__marble = { x: marblePose.x, y: marblePose.y, z: marblePose.z, phase }
     }
     if (phase === "running" && p.y < gameConfig.missBelow) miss()
-  })
+  }, -1)
 
   return (
     <RigidBody

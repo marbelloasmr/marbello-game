@@ -3,7 +3,7 @@ import { SoonPage } from "@/components/game/SoonPage"
 
 export const Route = createFileRoute("/build")({
   component: BuildPage,
-  head: () => ({ meta: [{ title: "Build a track — MARBELLO ASMR" }] }),
+  head: () => ({ meta: [{ title: "Build a track — Marbello game" }] }),
 })
 
 function BuildPage() {

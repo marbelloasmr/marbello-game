@@ -3,7 +3,7 @@ import { SoonPage } from "@/components/game/SoonPage"
 
 export const Route = createFileRoute("/gallery")({
   component: GalleryPage,
-  head: () => ({ meta: [{ title: "Gallery — MARBELLO ASMR" }] }),
+  head: () => ({ meta: [{ title: "Gallery — Marbello game" }] }),
 })
 
 function GalleryPage() {

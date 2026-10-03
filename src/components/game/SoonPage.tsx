@@ -17,6 +17,7 @@ export function SoonPage({
       <header className="topbar">
         <Link to="/" className="logo-link" aria-label={brandConfig.name}>
           <img src={brandConfig.logo} alt="" className="logo-mark" />
+          <span className="logo-name">{brandConfig.name}</span>
         </Link>
         <Link to="/" className="ghost-btn hit">
           Back to play

@@ -1,8 +1,8 @@
 export const brandConfig = {
-  name: "MARBELLO ASMR",
+  name: "Marbello game",
   domain: "https://marbelloasmr.com",
-  title: "MARBELLO ASMR — Interactive Marble Runs",
+  title: "Marbello game — Interactive Marble Runs",
   description:
-    "Play satisfying interactive marble runs with realistic physics and ASMR sounds. Create, drop and relax with MARBELLO ASMR.",
+    "Play satisfying interactive marble runs with realistic physics and ASMR sounds. Create, drop and relax with Marbello game.",
   logo: "/marbello-logo.png",
 } as const

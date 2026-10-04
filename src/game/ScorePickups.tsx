@@ -143,7 +143,7 @@ function Gem({ gem }: { gem: GemSpot }) {
     <group>
       <RigidBody type="fixed" position={gem.position} colliders={false} sensor>
         <BallCollider
-          args={[gem.golden ? 0.2 : 0.15]}
+          args={[gem.golden ? 0.2 : (gem.sensor ?? 0.15)]}
           sensor
           onIntersectionEnter={(payload) => {
             if (taken.current || phaseRef.current !== "running") return

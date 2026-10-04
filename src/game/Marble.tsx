@@ -1,16 +1,17 @@
 import { useMemo, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import { BallCollider, CuboidCollider, RigidBody, type RapierRigidBody } from "@react-three/rapier"
-import { CanvasTexture, SRGBColorSpace, type MeshBasicMaterial } from "three"
+import { CanvasTexture, SRGBColorSpace, type Mesh } from "three"
 import { marbleById } from "@/data/marbleTypes"
 import { getAudio } from "@/audio/AudioEngine"
-import { FINISH_POSITION, START_POSITION } from "@/game/trackLayout"
+import { FINISH_POSITION } from "@/game/trackLayout"
 import { marblePose } from "@/game/marblePose"
-import { marbleApi, sling, spawn } from "@/game/spawn"
+import { aimedStart, marbleApi, spawn } from "@/game/spawn"
 import { useGame } from "@/game/state"
 import { gameConfig } from "@/config/gameConfig"
 import type { Surface } from "@/physics/materials"
 import { cameraShake } from "@/game/CameraRig"
+import { watchStuck } from "@/game/stuck"
 
 function paintTexture(mode: "speckle" | "swirl", a: string, b: string) {
   const canvas = document.createElement("canvas")
@@ -46,9 +47,28 @@ function paintTexture(mode: "speckle" | "swirl", a: string, b: string) {
   return tex
 }
 
+function shadowTexture() {
+  const canvas = document.createElement("canvas")
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return null
+  const gradient = ctx.createRadialGradient(32, 32, 4, 32, 32, 32)
+  gradient.addColorStop(0, "rgba(10, 36, 58, 0.62)")
+  gradient.addColorStop(1, "rgba(20, 40, 70, 0)")
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, 64, 64)
+  const tex = new CanvasTexture(canvas)
+  tex.colorSpace = SRGBColorSpace
+  return tex
+}
+
+const contactMap = typeof document !== "undefined" ? shadowTexture() : null
+
 export function Marble({ fancy }: { fancy: boolean }) {
   const body = useRef<RapierRigidBody>(null)
-  const ring = useRef<MeshBasicMaterial>(null)
+  const shade = useRef<Mesh>(null)
+  const aimMark = useRef<Mesh>(null)
   const { phase, marbleId, runId, registerImpact, miss } = useGame()
   const marble = marbleById(marbleId)
   const live = phase === "running" || phase === "done"
@@ -59,7 +79,8 @@ export function Marble({ fancy }: { fancy: boolean }) {
   }, [marble])
 
   const placed = spawn.custom
-  const start = placed ? ([spawn.x, spawn.y, spawn.z] as const) : START_POSITION
+  const aimed = aimedStart()
+  const start = placed ? ([spawn.x, spawn.y, spawn.z] as const) : ([aimed.x, aimed.y, aimed.z] as const)
   const kickedRun = useRef("")
 
   useFrame(() => {
@@ -94,8 +115,17 @@ export function Marble({ fancy }: { fancy: boolean }) {
     marblePose.vy = v.y
     marblePose.vz = v.z
     marblePose.on = true
+    if (shade.current) {
+      const flying = Math.abs(v.y) > 2.4
+      shade.current.visible = !flying
+      shade.current.position.set(p.x, p.y - gameConfig.marbleRadius - 0.015, p.z)
+    }
+    if (aimMark.current) {
+      aimMark.current.visible = phase === "ready"
+      aimMark.current.position.set(p.x, p.y - gameConfig.marbleRadius - 0.01, p.z)
+    }
+    watchStuck(phase, p.x, p.y, p.z, performance.now())
     marbleApi.body = current
-    if (ring.current) ring.current.color.set(sling.armed ? "#ffe56a" : "#ff4fa3")
     if (import.meta.env.DEV) {
       const w = window as unknown as { __marble?: { x: number; y: number; z: number; phase: string } }
       w.__marble = { x: marblePose.x, y: marblePose.y, z: marblePose.z, phase }
@@ -104,6 +134,15 @@ export function Marble({ fancy }: { fancy: boolean }) {
   }, -1)
 
   return (
+    <>
+    <mesh ref={aimMark} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
+      <ringGeometry args={[0.1, 0.15, 28]} />
+      <meshBasicMaterial color="#f3d27a" transparent opacity={0.7} depthWrite={false} />
+    </mesh>
+    <mesh ref={shade} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
+      <circleGeometry args={[0.22, 16]} />
+      <meshBasicMaterial map={contactMap} transparent depthWrite={false} />
+    </mesh>
     <RigidBody
       ref={body}
       key={`${runId}-${marbleId}-${live ? "go" : "hold"}`}
@@ -145,19 +184,33 @@ export function Marble({ fancy }: { fancy: boolean }) {
           attenuationDistance={0.45}
         />
       </mesh>
+      <mesh renderOrder={20} scale={1.002} raycast={() => null}>
+        <sphereGeometry args={[gameConfig.marbleRadius, fancy ? 32 : 20, fancy ? 24 : 16]} />
+        <meshPhysicalMaterial
+          color={marble.color}
+          map={texture}
+          roughness={marble.roughness}
+          metalness={marble.metalness}
+          transparent
+          opacity={1}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+          clearcoat={1}
+          clearcoatRoughness={0.05}
+          envMapIntensity={1.2}
+          transmission={0}
+        />
+      </mesh>
       {live ? null : (
-        <group>
-          <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.46, 0.028, 8, 28]} />
-            <meshBasicMaterial ref={ring} color="#ff4fa3" transparent opacity={0.9} />
-          </mesh>
-          <mesh name="place-handle">
-            <sphereGeometry args={[1.2, 12, 12]} />
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-          </mesh>
-        </group>
+        <mesh name="place-handle">
+          <sphereGeometry args={[1.2, 12, 12]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
       )}
     </RigidBody>
+    </>
   )
 }
 

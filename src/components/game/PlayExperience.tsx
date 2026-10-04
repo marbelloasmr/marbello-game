@@ -1,13 +1,16 @@
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Link } from "@tanstack/react-router"
-import { Menu, Play, RotateCcw, Trophy, Volume2, VolumeX, Wrench, X, Youtube, Images } from "lucide-react"
+import { Menu, Medal, Play, RotateCcw, Trophy, Video, Volume2, VolumeX, Wrench, X, Youtube, Images } from "lucide-react"
 import { brandConfig } from "@/config/brandConfig"
 import { youtubeConfig } from "@/config/youtubeConfig"
-import { MARBLES, type MarbleId } from "@/data/marbleTypes"
+import { MARBLES, marbleById, type MarbleId } from "@/data/marbleTypes"
+import { getBoard, subscribeBoard } from "@/game/leaderboard"
 import { ClientCanvas } from "@/components/game/ClientCanvas"
 import { BootScreen } from "@/components/game/BootScreen"
+import { getCameraMode, setCameraMode, subscribeCamera, type CameraMode } from "@/game/CameraRig"
+import { isStuck, marbleScreen, subscribeStuck, unstuck } from "@/game/stuck"
 import { runClock, useGame } from "@/game/state"
-import { sling, subscribeSling } from "@/game/spawn"
+import { sling, startPower, setStartPower, subscribeSling } from "@/game/spawn"
 import { SubscriberBonusService } from "@/game/SubscriberBonusService"
 import { trackEvent } from "@/utils/analytics"
 
@@ -30,15 +33,44 @@ export function PlayExperience() {
         <BrandCard />
         <SidePicker />
         <Dock />
+        <PowerGauge />
         <Results />
+        <UnstuckButton />
       </div>
       {booting ? <BootScreen onReveal={() => setCover(false)} onDone={() => setBooting(false)} /> : null}
     </div>
   )
 }
 
+function UnstuckButton() {
+  const stuck = useSyncExternalStore(subscribeStuck, isStuck, () => false)
+  const ref = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!stuck) return
+    let frame = 0
+    const place = () => {
+      const button = ref.current
+      if (button) {
+        button.style.left = `${marbleScreen.x}px`
+        button.style.top = `${marbleScreen.y}px`
+        button.style.visibility = marbleScreen.visible ? "visible" : "hidden"
+      }
+      frame = requestAnimationFrame(place)
+    }
+    frame = requestAnimationFrame(place)
+    return () => cancelAnimationFrame(frame)
+  }, [stuck])
+  if (!stuck) return null
+  return (
+    <button ref={ref} type="button" className="unstuck-float hit" onClick={unstuck}>
+      Unstuck
+    </button>
+  )
+}
+
 function TopBar() {
   const [open, setOpen] = useState(false)
+  const [boardOpen, setBoardOpen] = useState(false)
   const [bonusOpen, setBonusOpen] = useState(false)
   const { sound, toggleSound } = useGame()
   const verified = useSyncExternalStore(SubscriberBonusService.subscribe, SubscriberBonusService.isVerified, () => false)
@@ -53,6 +85,10 @@ function TopBar() {
         {LINKS.map((item) => (
           <NavLink key={item.to} {...item} />
         ))}
+        <button type="button" className="nav-link" onClick={() => setBoardOpen(true)}>
+          <Medal size={16} />
+          Leaderboard
+        </button>
       </nav>
       <div className="relative flex shrink-0 items-center gap-2">
         <button type="button" className="icon-btn" onClick={toggleSound} aria-pressed={sound} aria-label={sound ? "Sound off" : "Sound on"}>
@@ -75,11 +111,51 @@ function TopBar() {
               {LINKS.map((item) => (
                 <NavLink key={item.to} {...item} onPick={() => setOpen(false)} />
               ))}
+              <button
+                type="button"
+                className="nav-link"
+                onClick={() => {
+                  setOpen(false)
+                  setBoardOpen(true)
+                }}
+              >
+                <Medal size={16} />
+                Leaderboard
+              </button>
             </nav>
           ) : null}
       </div>
       {bonusOpen && !verified ? <BonusPopup onClose={() => setBonusOpen(false)} /> : null}
+      {boardOpen ? <Leaderboard onClose={() => setBoardOpen(false)} /> : null}
     </header>
+  )
+}
+
+function Leaderboard({ onClose }: { onClose: () => void }) {
+  const rows = useSyncExternalStore(subscribeBoard, getBoard, () => [])
+  return (
+    <div className="bonus-pop-back hit" onClick={onClose}>
+      <div className="glass bonus-pop board-pop" role="dialog" aria-labelledby="board-title" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="sub-close" onClick={onClose} aria-label="Close">
+          <X size={16} />
+        </button>
+        <h2 id="board-title">Leaderboard</h2>
+        {rows.length === 0 ? (
+          <p>No runs yet. Finish a drop to land here.</p>
+        ) : (
+          <ol className="board-list">
+            {rows.map((row, index) => (
+              <li key={`${row.at}-${index}`}>
+                <span>{index + 1}</span>
+                <strong>{row.score.toLocaleString("en-US")}</strong>
+                <em>{marbleById(row.marble as MarbleId).name}</em>
+                <small>{row.seconds.toFixed(2)}s</small>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -178,6 +254,51 @@ function BrandCard() {
     </aside>
   )
 }
+
+function PowerGauge() {
+  const { phase } = useGame()
+  const [power, setPower] = useState(startPower.value)
+  const track = useRef<HTMLDivElement>(null)
+  if (phase !== "ready") return null
+  const locked = phase !== "ready"
+  const apply = (clientY: number) => {
+    const rect = track.current?.getBoundingClientRect()
+    if (!rect || locked) return
+    const next = Math.round((1 - (clientY - rect.top) / rect.height) * 100)
+    setStartPower(next)
+    setPower(startPower.value)
+  }
+  return (
+    <div className={`power-gauge${locked ? " is-locked" : ""}`}>
+      <span>Power</span>
+      <strong>{power}%</strong>
+      <div
+        className="power-track"
+        ref={track}
+        onPointerDown={(event) => {
+          if (locked) return
+          event.currentTarget.setPointerCapture(event.pointerId)
+          event.stopPropagation()
+          apply(event.clientY)
+        }}
+        onPointerMove={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+          apply(event.clientY)
+        }}
+      >
+        <div className="power-bar">
+          <div className="power-fill" style={{ height: `${power}%` }} />
+          {[25, 50, 75, 100].map((tick) => (
+            <i key={tick} style={{ bottom: `${tick}%` }} />
+          ))}
+          {startPower.last == null ? null : <b className="power-last" style={{ bottom: `${startPower.last}%` }} />}
+        </div>
+        <em className="power-handle" style={{ bottom: `${power}%` }} />
+      </div>
+    </div>
+  )
+}
+
 function Dock() {
   const { phase, drop, again } = useGame()
   const aiming = useSyncExternalStore(subscribeSling, () => sling.armed, () => false)
@@ -188,22 +309,36 @@ function Dock() {
       {phase === "running" ? <LiveTime /> : null}
       {phase === "ready" ? (
         <p className="hint">
-          {aiming ? "Short pull, soft shot · long pull, hard shot" : "Drag freely on the start ramp · pinch or scroll to zoom"}
+          {aiming ? "Short pull, soft shot · long pull, hard shot" : "Drag and aim power · left, right, up, down"}
         </p>
       ) : null}
       <Swatches layout="row" />
-      {phase === "running" ? (
-        <button type="button" className="drop-btn hit" onClick={again}>
-          <RotateCcw size={20} />
-          Start over
-        </button>
-      ) : (
-        <button type="button" className="drop-btn hit" data-testid="drop-marble" onClick={drop}>
-          <Play size={20} fill="currentColor" />
-          Drop marble
-        </button>
-      )}
+      <div className="action-row">
+        {phase === "ready" ? (
+          <button type="button" className="drop-btn hit" data-testid="drop-marble" onClick={drop}>
+            <Play size={20} fill="currentColor" />
+            Drop marble
+          </button>
+        ) : (
+          <button type="button" className="drop-btn hit" onClick={again}>
+            <RotateCcw size={14} />
+            Start over
+          </button>
+        )}
+        <CameraIcon />
+      </div>
     </div>
+  )
+}
+
+function CameraIcon() {
+  const mode = useSyncExternalStore(subscribeCamera, getCameraMode, () => "follow" as const)
+  const next: Record<CameraMode, CameraMode> = { standard: "follow", follow: "free", free: "standard" }
+  const label = mode === "follow" ? "Follow camera" : mode === "free" ? "Free camera" : "Standard camera"
+  return (
+    <button type="button" className={`cam-ico hit is-${mode}`} aria-label={label} title={label} onClick={() => setCameraMode(next[mode])}>
+      <Video size={18} />
+    </button>
   )
 }
 
@@ -242,7 +377,7 @@ function Results() {
   const next = MARBLES[(MARBLES.findIndex((m) => m.id === marbleId) + 1) % MARBLES.length]!
   return (
     <section className="glass results hit" aria-live="polite">
-      <h2>{phase === "done" ? "Run complete" : "Missed the bowl"}</h2>
+      <h2>{phase === "missed" ? "Missed the bowl" : gems === gemTotal && gemTotal > 0 ? "Perfect run!" : "Run complete"}</h2>
       <p>
         Score {score.toLocaleString("en-US")}
         <span> · </span>
@@ -253,6 +388,7 @@ function Results() {
         <span> · </span>
         Best {best.toLocaleString("en-US")}
       </p>
+      <p>Start · Power {startPower.value}%</p>
       <div className="result-actions">
         <button type="button" className="solid-btn" onClick={again}>
           <RotateCcw size={16} className="mr-1 inline" />

@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react"
 import { useFrame, useThree } from "@react-three/fiber"
 import { Plane, Raycaster, Vector2, Vector3, type Object3D } from "three"
-import { marbleApi, previewZoom, setPreviewZoom, setSlingArmed, sling, spawn, throwAim, focusStartZone } from "@/game/spawn"
+import { marbleApi, previewZoom, setPreviewZoom, setSlingArmed, sling, spawn, throwAim, focusStartZone, claimCameraGesture, claimMarbleGesture, freeGesture, releaseGesture, setStartAim, aimedStart, startSide } from "@/game/spawn"
+import { START_POSITION } from "@/game/trackLayout"
 import { useGame } from "@/game/state"
 import { START_ZONE } from "@/game/trackLayout"
+import { getCameraMode, addManualPitch, addManualYaw } from "@/game/CameraRig"
 
 const MAX_PULL = 2.5
 const MIN_PULL = 0.42
@@ -92,14 +94,21 @@ function writeBody(point: Vector3) {
   spawn.vz = 0
 }
 
-function shotVelocity(dx: number, dy: number, dz: number) {
+function shotVelocity(dx: number, dy: number, dz: number, flat: boolean) {
   const pulled = Math.hypot(dx, dy, dz) || 1
   const stretch = clamp((pulled - MIN_PULL) / (MAX_PULL - MIN_PULL), 0, 1)
   const horiz = Math.hypot(dx, dz)
   const hSpeed = stretch * MAX_THROW
+  const scale = horiz > 0.04 ? hSpeed / horiz : 0
+  if (flat) {
+    return {
+      vx: dx * scale,
+      vy: stretch * 2.4,
+      vz: dz * scale,
+    }
+  }
   const lob = stretch * (MAX_THROW + 3)
   const aimUp = Math.max(0, dy / pulled) * stretch * 4
-  const scale = horiz > 0.04 ? hSpeed / horiz : 0
   return {
     vx: dx * scale,
     vy: lob + aimUp,
@@ -136,6 +145,10 @@ export function MarblePlacer() {
   const pointR = useRef<Object3D>(null)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const pinchDist = useRef(0)
+  const flatSling = useRef(false)
+  const flatShot = useRef({ pull: 0, vx: 0, vy: 0, vz: 0 })
+  const yawX = useRef(0)
+  const yawY = useRef(0)
 
   useEffect(() => {
     if (phase === "ready") return
@@ -146,9 +159,23 @@ export function MarblePlacer() {
   useEffect(() => {
     const el = gl.domElement
 
+    const armCamera = (event: PointerEvent) => {
+      claimCameraGesture()
+      yawX.current = event.clientX
+      yawY.current = event.clientY
+      try {
+        el.setPointerCapture(event.pointerId)
+      } catch {
+        /* Pointer already released. */
+      }
+    }
+
     const onDown = (event: PointerEvent) => {
+      const free = getCameraMode() === "free"
+      if (free && freeGesture.owner === "marble") return
       pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
       if (pointers.current.size >= 2) {
+        if (free) return
         if (dragging.current) writeBody(anchor.current)
         dragging.current = false
         slinging.current = false
@@ -157,19 +184,40 @@ export function MarblePlacer() {
         pinchDist.current = Math.hypot(a!.x - b!.x, a!.y - b!.y)
         return
       }
-      if (phaseRef.current !== "ready" || event.button !== 0) return
+      if (phaseRef.current !== "ready" || event.button !== 0) {
+        if (free) armCamera(event)
+        return
+      }
       const body = marbleApi.body
-      if (!body) return
+      if (!body) {
+        if (free) armCamera(event)
+        return
+      }
       pointerNdc(el, event)
       raycaster.setFromCamera(ndc, camera)
       const grabbed = raycaster.intersectObjects(scene.children, true).some((item) => {
         return item.object.name === "place-handle" || item.object.name === "play-marble"
       })
+      if (free && !grabbed) {
+        armCamera(event)
+        pointers.current.delete(event.pointerId)
+        return
+      }
       const origin = body.translation()
       anchor.current.set(origin.x, origin.y, origin.z)
-      if (grabbed) focusStartZone()
-      camera.getWorldDirection(normal)
-      grabPlane.current.setFromNormalAndCoplanarPoint(normal, anchor.current)
+      flatSling.current = getCameraMode() === "follow" && sling.armed && grabbed
+      if (grabbed && !flatSling.current && !free) focusStartZone()
+      if (free && grabbed) {
+        claimMarbleGesture()
+        event.stopPropagation()
+      }
+      if (flatSling.current) {
+        grabPlane.current.setFromNormalAndCoplanarPoint(normal.set(0, 1, 0), anchor.current)
+      } else {
+        camera.getWorldDirection(normal)
+        grabPlane.current.setFromNormalAndCoplanarPoint(normal, anchor.current)
+      }
+      flatShot.current.pull = 0
       dragging.current = true
       moved.current = false
       slinging.current = sling.armed && grabbed
@@ -191,7 +239,7 @@ export function MarblePlacer() {
         throwAim.on = false
         return
       }
-      const shot = shotVelocity(scratch.x, scratch.y, scratch.z)
+      const shot = shotVelocity(scratch.x, scratch.y, scratch.z, flatSling.current)
       throwAim.on = true
       throwAim.x = next.x
       throwAim.y = next.y
@@ -202,6 +250,15 @@ export function MarblePlacer() {
     }
 
     const onMove = (event: PointerEvent) => {
+      if (getCameraMode() === "free" && freeGesture.owner !== "marble") {
+        if (freeGesture.owner === "camera") {
+          addManualYaw(-(event.clientX - yawX.current) * 0.008)
+          addManualPitch(-(event.clientY - yawY.current) * 0.008)
+          yawX.current = event.clientX
+          yawY.current = event.clientY
+        }
+        return
+      }
       const known = pointers.current.get(event.pointerId)
       if (known) {
         known.x = event.clientX
@@ -228,10 +285,48 @@ export function MarblePlacer() {
       if (!raycaster.ray.intersectPlane(grabPlane.current, planeHit)) return
 
       if (!slinging.current) {
-        if (sling.armed) setSlingArmed(false)
-        clampToStartZone(planeHit)
+        const along =
+          (planeHit.x - START_POSITION[0]) * startSide.x + (planeHit.z - START_POSITION[2]) * startSide.z
+        setStartAim(along, planeHit.y - START_POSITION[1])
+        const at = aimedStart()
+        planeHit.set(at.x, at.y, at.z)
         writeBody(planeHit)
         throwAim.on = false
+        return
+      }
+
+      if (flatSling.current) {
+        const rect = el.getBoundingClientRect()
+        const down = (event.clientY - downAt.current.y) / Math.max(rect.height, 1)
+        const side = (event.clientX - downAt.current.x) / Math.max(rect.width, 1)
+        const back = clamp(down * 1.7, 0, 1)
+        const lat = clamp(side * 1.2, -0.55, 0.55)
+        scratch.copy(anchor.current)
+        clampToStartZone(scratch)
+        const horiz = Math.hypot(tangent.x, tangent.z) || 1
+        const fx = tangent.x
+        const fz = tangent.z
+        const rx = -tangent.z / horiz
+        const rz = tangent.x / horiz
+        const pull = back * MAX_PULL
+        placed.set(
+          anchor.current.x - fx * pull + rx * lat * pull,
+          anchor.current.y,
+          anchor.current.z - fz * pull + rz * lat * pull,
+        )
+        writeBody(placed)
+        const speed = back * MAX_THROW
+        flatShot.current.pull = pull
+        flatShot.current.vx = (fx + rx * lat) * speed
+        flatShot.current.vy = back * 2.2
+        flatShot.current.vz = (fz + rz * lat) * speed
+        throwAim.on = pull > 0.08
+        throwAim.x = placed.x
+        throwAim.y = placed.y
+        throwAim.z = placed.z
+        throwAim.vx = flatShot.current.vx
+        throwAim.vy = flatShot.current.vy
+        throwAim.vz = flatShot.current.vz
         return
       }
 
@@ -251,16 +346,18 @@ export function MarblePlacer() {
       slinging.current = false
       throwAim.on = false
       if (phaseRef.current !== "ready") return
-      if (!moved.current) {
-        setSlingArmed(tappedMarble.current)
-        return
-      }
-      if (!wasSling) {
-        setSlingArmed(true)
-        return
-      }
+      if (!moved.current) return
+      if (!wasSling) return
       const body = marbleApi.body
       if (!body) return
+      if (flatSling.current) {
+        if (flatShot.current.pull < MIN_PULL) {
+          writeBody(anchor.current)
+          return
+        }
+        throwRef.current(anchor.current.x, anchor.current.y, anchor.current.z, flatShot.current.vx, flatShot.current.vy, flatShot.current.vz)
+        return
+      }
       const at = body.translation()
       clampToStartZone(placed.set(at.x, at.y, at.z))
       writeBody(placed)
@@ -272,7 +369,7 @@ export function MarblePlacer() {
         writeBody(anchor.current)
         return
       }
-      const shot = shotVelocity(dx, dy, dz)
+      const shot = shotVelocity(dx, dy, dz, flatSling.current)
       throwRef.current(placed.x, placed.y, placed.z, shot.vx, shot.vy, shot.vz)
     }
 
@@ -285,9 +382,11 @@ export function MarblePlacer() {
         return
       }
       finish()
+      if (freeGesture.owner !== "none") releaseGesture()
     }
 
     const onWheel = (event: WheelEvent) => {
+      if (getCameraMode() === "free") return
       if (phaseRef.current !== "ready") return
       event.preventDefault()
       const dir = event.deltaY > 0 ? 1 : -1
@@ -295,13 +394,13 @@ export function MarblePlacer() {
       setPreviewZoom(previewZoom.distance * (1 + dir * mag * 0.0018))
     }
 
-    el.addEventListener("pointerdown", onDown)
+    el.addEventListener("pointerdown", onDown, true)
     el.addEventListener("pointermove", onMove)
     el.addEventListener("pointerup", onUp)
     el.addEventListener("pointercancel", onUp)
     el.addEventListener("wheel", onWheel, { passive: false })
     return () => {
-      el.removeEventListener("pointerdown", onDown)
+      el.removeEventListener("pointerdown", onDown, true)
       el.removeEventListener("pointermove", onMove)
       el.removeEventListener("pointerup", onUp)
       el.removeEventListener("pointercancel", onUp)

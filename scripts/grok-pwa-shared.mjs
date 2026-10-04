@@ -14,8 +14,6 @@ const SHARE_META_KEYS = new Set([
   "og:title",
   "og:description",
   "og:image",
-  "og:image:secure_url",
-  "og:image:type",
   "og:image:width",
   "og:image:height",
   "og:type",
@@ -116,16 +114,6 @@ export function resolvePublicHost(hostHeader) {
   return (
     publicAppHost(process.env?.VITE_PUBLIC_HOSTNAME) || publicAppHost(hostHeader)
   );
-}
-
-/** Fixed public host from site.json. Used when Vercel hides the real hostname. */
-function explicitShareHost(site) {
-  const pinned = String(site?.shareHost ?? "")
-    .trim()
-    .toLowerCase()
-    .split(":")[0];
-  if (!pinned || !/^[a-z0-9.-]+$/.test(pinned) || !pinned.includes(".")) return "";
-  return pinned;
 }
 
 export function isInstallQuery(url) {
@@ -359,7 +347,7 @@ export function grokOgHeadTags({
   cwd = process.cwd(),
 } = {}) {
   const title = resolveOgTitle(site, appName, host, documentTitle);
-  const publicHost = resolvePublicHost(host) || explicitShareHost(site);
+  const publicHost = resolvePublicHost(host);
   const tags = [
     `<meta name="twitter:card" content="summary_large_image">`,
     `<meta property="og:title" content="${escapeHtml(title)}">`,
@@ -380,12 +368,8 @@ export function grokOgHeadTags({
     const color = !custom ? placeholderCardColor(site) : "";
     if (color) image += `&color=${encodeURIComponent(color)}`;
     tags.push(`<meta property="og:image" content="${escapeHtml(image)}">`);
-    tags.push(`<meta property="og:image:secure_url" content="${escapeHtml(image)}">`);
-    tags.push(`<meta property="og:image:type" content="${custom && asset.endsWith(".png") ? "image/png" : "image/jpeg"}">`);
     tags.push(`<meta property="og:image:width" content="1200">`);
     tags.push(`<meta property="og:image:height" content="630">`);
-    tags.push(`<meta property="og:url" content="https://${publicHost}/">`);
-    tags.push(`<meta name="twitter:image" content="${escapeHtml(image)}">`);
     const banner = String(site.banner ?? "").trim();
     if (banner) {
       const bannerUrl = `https://${publicHost}${banner.startsWith("/") ? banner : `/${banner}`}`;

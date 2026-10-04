@@ -8,4 +8,5 @@ export const gameConfig = {
   floorThickness: 0.08,
   /** Marble center below this has left the track and landed on the studio floor. */
   missBelow: 0.3,
+  perfectRunBonus: 5000,
 } as const

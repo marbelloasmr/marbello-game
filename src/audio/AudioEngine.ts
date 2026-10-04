@@ -161,6 +161,50 @@ export class AudioEngine {
     this.noiseBurst(ctx, gain, t, 0.06, 3200, 0.2)
   }
 
+  playJar() {
+    if (!this.enabled) return
+    const ctx = this.ensure()
+    if (!ctx || ctx.state !== "running") return
+    const t = ctx.currentTime
+    const bus = ctx.createGain()
+    bus.gain.value = 1
+    bus.connect(this.master!)
+
+    const thud = ctx.createOscillator()
+    const thudGain = ctx.createGain()
+    thud.type = "sine"
+    thud.frequency.setValueAtTime(168, t)
+    thud.frequency.exponentialRampToValueAtTime(70, t + 0.22)
+    thudGain.gain.setValueAtTime(0.0001, t)
+    thudGain.gain.exponentialRampToValueAtTime(0.28, t + 0.018)
+    thudGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28)
+    thud.connect(thudGain)
+    thudGain.connect(bus)
+    thud.start(t)
+    thud.stop(t + 0.3)
+    this.noiseBurst(ctx, bus, t, 0.08, 420, 0.22)
+
+    const clicks = [0.02, 0.05, 0.09, 0.13, 0.18, 0.24, 0.31, 0.4]
+    for (const delay of clicks) {
+      const when = t + delay
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = Math.random() > 0.5 ? "triangle" : "sine"
+      const f = 980 + Math.random() * 2200
+      osc.frequency.setValueAtTime(f, when)
+      osc.frequency.exponentialRampToValueAtTime(f * 0.62, when + 0.07)
+      const loud = 0.05 + Math.random() * 0.07
+      gain.gain.setValueAtTime(0.0001, when)
+      gain.gain.exponentialRampToValueAtTime(loud, when + 0.006)
+      gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.09)
+      osc.connect(gain)
+      gain.connect(bus)
+      osc.start(when)
+      osc.stop(when + 0.1)
+      this.noiseBurst(ctx, bus, when, 0.035, 1800 + Math.random() * 1600, loud * 0.85)
+    }
+  }
+
   private noiseBurst(ctx: AudioContext, destination: AudioNode, t: number, dur: number, freq: number, loud: number) {
     const length = Math.floor(ctx.sampleRate * dur)
     const buffer = ctx.createBuffer(1, length, ctx.sampleRate)

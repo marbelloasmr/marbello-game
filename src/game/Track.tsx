@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { CuboidCollider, CylinderCollider, RigidBody } from "@react-three/rapier"
-import { Matrix4, Quaternion, Vector3 } from "three"
-import { START_ZONE, TRACK_PIECES, type TrackPiece } from "@/game/trackLayout"
+import { BackSide, DoubleSide, FrontSide, Matrix4, MeshPhysicalMaterial, Quaternion, Vector3, type Side } from "three"
+import { START_ZONE, TRACK_PIECES, ZONES, type TrackPiece } from "@/game/trackLayout"
 import { SURFACE_PHYSICS, type Surface } from "@/physics/materials"
 
 const COLOR: Record<Surface, string> = {
@@ -11,45 +11,78 @@ const COLOR: Record<Surface, string> = {
   acrylic: "#eefcff",
 }
 
-function materialProps(surface: Surface, fancy: boolean) {
+function makeAcrylic(opacity: number, color: string, side: Side, sheen = false) {
+  const mat = new MeshPhysicalMaterial({
+    color,
+    roughness: sheen ? 0.045 : 0.12,
+    metalness: 0.02,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    side,
+    clearcoat: sheen ? 1 : 0.55,
+    clearcoatRoughness: sheen ? 0.04 : 0.2,
+    reflectivity: sheen ? 0.72 : 0.35,
+    envMapIntensity: sheen ? 1.65 : 0.7,
+    transmission: 0,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
+  })
+  const shine = sheen ? "0.22" : "0.16"
+  const edge = sheen ? "0.16" : "0.22"
+  const cap = sheen ? "0.58" : "0.4"
+  mat.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <dithering_fragment>",
+      `
+        float fres = pow(1.0 - clamp(dot(normalize(normal), normalize(-vViewPosition)), 0.0, 1.0), 2.4);
+        gl_FragColor.rgb += vec3(0.93, 0.97, 1.0) * fres * ${shine};
+        gl_FragColor.a = clamp(gl_FragColor.a + fres * ${edge}, 0.0, ${cap});
+        #include <dithering_fragment>
+      `,
+    )
+  }
+  return mat
+}
+
+function materialProps(surface: Surface) {
   if (surface === "wood") {
     return { color: COLOR.wood, roughness: 0.62, metalness: 0.04, transmission: 0, transparent: false, opacity: 1 }
   }
   if (surface === "metal") {
     return { color: COLOR.metal, roughness: 0.22, metalness: 0.92, transmission: 0, transparent: false, opacity: 1 }
   }
-  if (!fancy) {
-    return {
-      color: surface === "glass" ? "#bfefff" : "#f4fdff",
-      roughness: 0.08,
-      metalness: 0.05,
-      transmission: 0,
-      transparent: true,
-      opacity: 0.45,
-    }
-  }
-  return {
-    color: COLOR[surface],
-    roughness: 0.06,
-    metalness: 0.02,
-    transmission: surface === "glass" ? 0.85 : 0.72,
-    transparent: true,
-    opacity: 1,
-    thickness: 0.4,
-    ior: 1.45,
-  }
+  return null
 }
 
-function Piece({ piece, fancy }: { piece: TrackPiece; fancy: boolean }) {
+const iceFloor = makeAcrylic(0.42, "#e5f6ff", FrontSide, true)
+const floorUnder = new MeshPhysicalMaterial({
+  color: "#d5eefb",
+  roughness: 0.2,
+  metalness: 0,
+  transparent: true,
+  opacity: 0.16,
+  depthWrite: false,
+  side: BackSide,
+  clearcoat: 0.4,
+  clearcoatRoughness: 0.2,
+})
+const clearWall = makeAcrylic(0.14, "#f7fdff", DoubleSide, false)
+
+function Piece({ piece }: { piece: TrackPiece; fancy: boolean }) {
   const phys = SURFACE_PHYSICS[piece.material]
-  const look = materialProps(piece.material, fancy)
+  const look = materialProps(piece.material)
+  const acrylic = piece.material === "glass" || piece.material === "acrylic"
+  const floor = acrylic && piece.kind === "box" && piece.id.includes("-f-")
+  const sheet = acrylic ? (floor ? iceFloor : clearWall) : null
   if (piece.kind === "cylinder") {
     return (
       <RigidBody type="fixed" colliders={false} position={piece.position} userData={{ material: piece.material }}>
         <CylinderCollider args={[piece.height / 2, piece.radius]} friction={phys.friction} restitution={phys.restitution} />
-        <mesh name="track-surface" castShadow receiveShadow>
+        <mesh name="track-surface" castShadow receiveShadow material={sheet ?? undefined}>
           <cylinderGeometry args={[piece.radius, piece.radius, piece.height, 18]} />
-          <meshPhysicalMaterial {...look} />
+          {sheet ? null : <meshPhysicalMaterial {...look!} />}
         </mesh>
       </RigidBody>
     )
@@ -67,10 +100,19 @@ function Piece({ piece, fancy }: { piece: TrackPiece; fancy: boolean }) {
         friction={phys.friction}
         restitution={phys.restitution}
       />
-      <mesh name="track-surface" castShadow receiveShadow>
-        <boxGeometry args={piece.size} />
-        <meshPhysicalMaterial {...look} />
-      </mesh>
+      {piece.id.startsWith("bowl") || piece.id === "backstop" ? null : (
+        <group>
+          <mesh name="track-surface" castShadow receiveShadow material={sheet ?? undefined}>
+            <boxGeometry args={piece.size} />
+            {sheet ? null : <meshPhysicalMaterial {...look!} />}
+          </mesh>
+          {floor ? (
+            <mesh material={floorUnder}>
+              <boxGeometry args={piece.size} />
+            </mesh>
+          ) : null}
+        </group>
+      )}
     </RigidBody>
   )
 }
@@ -81,14 +123,67 @@ export function Track({ fancy }: { fancy: boolean }) {
       {TRACK_PIECES.map((piece) => (
         <Piece key={piece.id} piece={piece} fancy={fancy} />
       ))}
+      <MarbleJar fancy={fancy} />
       <StartWalls />
       <RigidBody type="fixed" colliders={false} position={[2, -0.12, 3]} userData={{ material: "wood" }}>
         <CuboidCollider args={[16, 0.12, 14]} friction={0.6} restitution={0.05} />
         <mesh receiveShadow>
           <boxGeometry args={[32, 0.24, 28]} />
-          <meshStandardMaterial color="#e7d3b0" roughness={0.85} metalness={0.02} />
+          <meshStandardMaterial color="#eef3f8" roughness={0.78} metalness={0.02} />
         </mesh>
       </RigidBody>
+    </group>
+  )
+}
+
+function MarbleJar({ fancy }: { fancy: boolean }) {
+  const [x, y, z] = ZONES.bowl
+  const fill = useMemo(() => {
+    const colors = ["#1a32f0", "#e21814", "#22c41c", "#f6c431", "#d22ad8", "#7fd4ff", "#ff4fa3", "#ffe56a", "#3ec6ff", "#ff9a1a", "#b388ff", "#7dffb3"]
+    const spots: { position: [number, number, number]; color: string; radius: number }[] = []
+    const rings = [6, 5, 3]
+    rings.forEach((count, layer) => {
+      const radius = 0.11 + (layer === 2 ? 0.02 : 0)
+      const ring = 0.42 - layer * 0.08
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2 + layer * 0.4
+        spots.push({
+          position: [Math.cos(a) * ring, 0.08 + radius + layer * 0.16, Math.sin(a) * ring],
+          color: colors[(i + layer * 3) % colors.length]!,
+          radius,
+        })
+      }
+    })
+    return spots
+  }, [])
+  return (
+    <group position={[x, y, z]}>
+      <mesh position={[0, 0.36, 0]}>
+        <cylinderGeometry args={[0.92, 0.8, 0.78, 36, 1, true]} />
+        <meshStandardMaterial color="#e9fbff" roughness={0.12} metalness={0} transparent opacity={0.28} depthWrite={false} side={DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.74, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.9, 0.045, 10, 36]} />
+        <meshStandardMaterial color="#f4feff" roughness={0.16} metalness={0.05} transparent opacity={0.45} side={DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.03, 0]}>
+        <cylinderGeometry args={[0.8, 0.86, 0.08, 28]} />
+        <meshStandardMaterial color="#d7f4ff" roughness={0.25} transparent opacity={0.55} />
+      </mesh>
+      {fill.map((ball, index) => (
+        <mesh key={index} position={ball.position} castShadow>
+          <sphereGeometry args={[ball.radius, 20, 16]} />
+          <meshPhysicalMaterial
+            color={ball.color}
+            roughness={0.08}
+            metalness={0.05}
+            transmission={fancy ? 0.55 : 0}
+            thickness={0.2}
+            clearcoat={1}
+            clearcoatRoughness={0.08}
+          />
+        </mesh>
+      ))}
     </group>
   )
 }

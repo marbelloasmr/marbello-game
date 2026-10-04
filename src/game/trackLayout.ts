@@ -24,7 +24,7 @@ export type TrackPiece = BoxPiece | CylinderPiece
 
 const { channelWidth: W, wallHeight: WH, wallThickness: WT, floorThickness: FT } = gameConfig
 
-type V3 = [number, number, number]
+export type V3 = [number, number, number]
 
 function qOf(dir: Vector3) {
   const side = new Vector3().crossVectors(new Vector3(0, 1, 0), dir)
@@ -166,7 +166,11 @@ pegRows.forEach((t, row) => {
 })
 
 const spiralCenter: V3 = [9.05, 0, 4.55]
-const spiralPts = helix(spiralCenter[0], spiralCenter[2], 1.05, -1.45, 1.22, 2.05, 42, Math.PI)
+const spiralPts = helix(spiralCenter[0], spiralCenter[2], 1.05, -1.45, 1.22, 2.05, 42, Math.PI).map((point, index) => {
+  if (index < 4 || index > 16) return point
+  const climb = Math.sin(((index - 4) / 12) * Math.PI) * 0.9
+  return [point[0], point[1] + climb, point[2]] as V3
+})
 const toSpiral = channel([pegPts[1]!, spiralPts[0]!], "acrylic", "to-spiral", 0.9, 0.56)
 
 const spiral = channel(spiralPts, "acrylic", "spiral", 0.9, 0.72)
@@ -250,6 +254,8 @@ let minBottom = Infinity
 for (const piece of rawPieces) minBottom = Math.min(minBottom, lowestY(piece))
 const lift = 0.42 - minBottom
 
+export const SPIRAL_LINE: V3[] = spiralPts.map((p) => [p[0], p[1] + lift, p[2]])
+
 function liftPiece<T extends TrackPiece>(piece: T): T {
   return { ...piece, position: [piece.position[0], piece.position[1] + lift, piece.position[2]] }
 }
@@ -281,6 +287,21 @@ export const START_ZONE = {
 const bowlLifted = raised(bowlCenter)
 export const FINISH_POSITION: V3 = [bowlLifted[0], bowlLifted[1] + 0.36, bowlLifted[2]]
 
+const rawPath: V3[] = [
+  ...acrylicPts,
+  ...woodPts.slice(1),
+  ...metalPts.slice(1),
+  ...takeoffPts.slice(1),
+  ...landingPts,
+  ...pegPts.slice(1),
+  ...spiralPts,
+  ...tubePts.slice(1),
+  lip,
+  bowlCenter,
+]
+/** Centerline the chase camera rides, in the same order the marble runs. */
+export const TRACK_PATH: V3[] = rawPath.map(raised)
+
 const spiralMid = spiralPts[Math.floor(spiralPts.length / 2)]!
 const funnelMid = lerp(mouth, lip, 0.5)
 export const ZONES = {
@@ -291,7 +312,7 @@ export const ZONES = {
 
 const GEM_COLORS = ["#3ec6ff", "#1a32f0", "#ff4fa3", "#d22ad8", "#ff9a1a", "#22c41c"]
 
-export type GemSpot = { id: string; position: V3; color: string; golden?: boolean }
+export type GemSpot = { id: string; position: V3; color: string; golden?: boolean; sensor?: number }
 export type GlassSpot = { id: string; position: V3; quaternion: [number, number, number, number]; color: string }
 
 function spotsOn(points: V3[], id: string, marks: number[], hover = 0.22): GemSpot[] {
@@ -332,13 +353,30 @@ const goldenAt = (() => {
   return { ...spot, id: "golden", color: "#f6c431", golden: true as const }
 })()
 
+const spiralGems = spotsOn(spiralPts, "spiral", [0.16, 0.34, 0.52, 0.78]).map((gem, index) => {
+  if (index === 0) {
+    return { ...gem, sensor: 0.19, position: [8.62, 3.56, 3.28] as V3 }
+  }
+  if (index === 1) {
+    const hard = { t: 0.4, outward: 0.1, hover: 0.16 }
+    const moved = spotsOn(spiralPts, "spiral", [hard.t], hard.hover)[0]!
+    const angle = Math.PI + hard.t * 2.05 * Math.PI * 2
+    return {
+      ...gem,
+      sensor: 0.19,
+      position: [moved.position[0] + Math.cos(angle) * hard.outward, moved.position[1], moved.position[2] + Math.sin(angle) * hard.outward] as V3,
+    }
+  }
+  return gem
+})
+
 export const MARBLE_GEMS: GemSpot[] = [
   ...spotsOn(acrylicPts, "acrylic", [0.55, 0.82]),
   ...spotsOn(woodPts, "wood", [0.35, 0.72]),
   ...spotsOn(metalPts, "metal", [0.28, 0.62]),
   ...spotsOn(landingPts, "land", [0.4, 0.78]),
   ...spotsOn(pegPts, "pegs", [0.22, 0.48, 0.74]),
-  ...spotsOn(spiralPts, "spiral", [0.16, 0.34, 0.52, 0.78]),
+  ...spiralGems,
   ...spotsOn(tubePts, "tube", [0.4, 0.75]),
   ...spotsOn([mouth, lip], "funnel", [0.42]),
   goldenAt,
@@ -352,6 +390,47 @@ export const GLASS_TARGETS: GlassSpot[] = [
   plateOn(tubePts, "glass-tube", 0.55, "#1a32f0"),
   plateOn([mouth, lip], "glass-funnel", 0.38, "#7af0ff"),
 ]
+
+function poseOn(points: V3[], t: number, hover: number, uphill = false) {
+  const scaled = t * (points.length - 1)
+  const i = Math.min(points.length - 2, Math.floor(scaled))
+  const f = scaled - i
+  const a = new Vector3(...points[i]!)
+  const b = new Vector3(...points[i + 1]!)
+  const dir = b.clone().sub(a)
+  dir.normalize()
+  if (uphill) dir.negate()
+  const { q, up } = qOf(dir)
+  const p = a.clone().lerp(b, f).addScaledVector(up, hover)
+  return {
+    position: raised([p.x, p.y, p.z]) as V3,
+    quaternion: tupleQ(q),
+    tangent: [dir.x, dir.y, dir.z] as V3,
+  }
+}
+
+/** Near side of the first spiral loop. The lift rides this path uphill to the bonus. */
+export const SPIRAL_BOOST = poseOn(spiralPts, 0.4, 0.03, true)
+export const SPIRAL_BONUS = poseOn(spiralPts, 0.22, 0.2)
+
+function ridePoint(points: V3[], index: number, hover: number): V3 {
+  const prev = points[Math.max(0, index - 1)]!
+  const next = points[Math.min(points.length - 1, index + 1)]!
+  const dir = new Vector3(...next).sub(new Vector3(...prev))
+  if (dir.lengthSq() < 1e-8) dir.set(0, 1, 0)
+  dir.normalize()
+  const { up } = qOf(dir)
+  const p = new Vector3(...points[index]!).addScaledVector(up, hover)
+  return raised([p.x, p.y, p.z])
+}
+
+const liftStart = Math.round(0.4 * (spiralPts.length - 1))
+const liftEnd = Math.round(0.22 * (spiralPts.length - 1))
+export const SPIRAL_LIFT: V3[] = []
+for (let index = liftStart; index >= liftEnd; index -= 1) {
+  SPIRAL_LIFT.push(ridePoint(spiralPts, index, 0.2))
+}
+SPIRAL_LIFT.push(SPIRAL_BONUS.position)
 
 export const CAMERA_HOME = {
   position: [1.5, 8.4, 20.8] as V3,

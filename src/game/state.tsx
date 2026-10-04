@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { DEFAULT_MARBLE, type MarbleId } from "@/data/marbleTypes"
 import { getAudio } from "@/audio/AudioEngine"
-import { clearSpawn, focusStartZone, spawn } from "@/game/spawn"
+import { clearSpawn, focusStartZone, aimedStart, launchVelocity, spawn, startPower } from "@/game/spawn"
 import { SubscriberBonusService } from "@/game/SubscriberBonusService"
+import { recordRun } from "@/game/leaderboard"
+import { gameConfig } from "@/config/gameConfig"
 import { MARBLE_GEMS } from "@/game/trackLayout"
 import { trackEvent } from "@/utils/analytics"
 
@@ -29,7 +31,7 @@ type GameContextValue = {
   finish: () => void
   miss: () => void
   registerImpact: (speed: number) => void
-  award: (base: number, kind: "gem" | "glass") => number
+  award: (base: number, kind: "gem" | "glass" | "bonus") => number
   toggleSound: () => void
 }
 
@@ -124,7 +126,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const award = useCallback((base: number, kind: "gem" | "glass") => {
+  const award = useCallback((base: number, kind: "gem" | "glass" | "bonus") => {
     if (phaseRef.current !== "running") return 0
     const now = performance.now()
     const mult = now < comboUntil.current ? Math.min(5, comboRef.current + 1) : 1
@@ -149,13 +151,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const drop = useCallback(() => {
     if (phaseRef.current === "running") return
-    if (spawn.custom) {
-      spawn.vx = 0
-      spawn.vy = 0
-      spawn.vz = 0
-    }
+    const at = aimedStart()
+    const shot = launchVelocity()
+    startPower.last = startPower.value
+    spawn.custom = true
+    spawn.x = at.x
+    spawn.y = at.y
+    spawn.z = at.z
+    spawn.vx = shot.vx
+    spawn.vy = shot.vy
+    spawn.vz = shot.vz
     beginRun()
-    trackEvent("marble_dropped", { marble: marbleRef.current, placed: spawn.custom })
+    trackEvent("marble_dropped", { marble: marbleRef.current, placed: true })
   }, [beginRun])
 
   const throwMarble = useCallback(
@@ -182,10 +189,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const finish = useCallback(() => {
     if (phaseRef.current !== "running" || started.current == null) return
     const elapsed = (performance.now() - started.current) / 1000
+    if (gemsRef.current >= GEM_TOTAL && GEM_TOTAL > 0) {
+      scoreRef.current += gameConfig.perfectRunBonus
+      setScore(scoreRef.current)
+    }
     setImpacts(impactsRef.current)
     setSeconds(elapsed)
     setPhase("done")
+    getAudio().playJar()
     rememberBest(scoreRef.current)
+    recordRun({ score: scoreRef.current, seconds: elapsed, marble: marbleRef.current, at: Date.now() })
     trackEvent("run_completed", { seconds: Math.round(elapsed * 100) / 100, impacts: impactsRef.current, score: scoreRef.current })
   }, [rememberBest])
 
@@ -196,6 +209,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setSeconds(elapsed)
     setPhase("missed")
     rememberBest(scoreRef.current)
+    recordRun({ score: scoreRef.current, seconds: elapsed, marble: marbleRef.current, at: Date.now() })
   }, [rememberBest])
 
   const registerImpact = useCallback((speed: number) => {

@@ -335,6 +335,7 @@
     position: relative;
     width: 2.6rem;
     height: 8.6rem;
+    margin-top: 0.55rem;
   }
 
   .power-bar {
@@ -342,7 +343,7 @@
     top: 0;
     bottom: 0;
     left: 50%;
-    width: 0.42rem;
+    width: 0.63rem;
     overflow: hidden;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.62);
@@ -375,13 +376,18 @@
   .power-handle {
     position: absolute;
     left: 50%;
-    bottom: calc(var(--power, 0.55) * 100%);
-    width: 0.95rem;
-    height: 0.95rem;
+    bottom: calc(0.675rem + (100% - 1.35rem) * var(--power, 0.55));
+    width: 1.35rem;
+    height: 1.35rem;
     border: 2px solid #fff;
     border-radius: 50%;
-    background: #243044;
-    box-shadow: 0 2px 8px rgba(36, 48, 68, 0.25);
+    background:
+      radial-gradient(circle at 32% 26%, #fff 0 10%, rgb(255 255 255 / 0) 28%),
+      conic-gradient(from 18deg, #f6c431 0 16%, #fff6c4 16% 28%, #e08a00 28% 44%, #ffe56a 44% 60%, #fff 60% 70%, #f6c431 70% 100%);
+    box-shadow:
+      inset 0 -4px 6px rgb(176 96 0 / 0.35),
+      0 0 10px rgb(255 214 80 / 0.9),
+      0 2px 6px rgb(36 48 68 / 0.22);
     transform: translate(-50%, 50%);
   }
 
@@ -851,7 +857,7 @@
   @media (min-width: 960px) {
     .ready-tools {
       position: absolute;
-      top: 6.5rem;
+      top: 9.15rem;
       right: 1.15rem;
       z-index: 14;
       display: flex;
@@ -882,10 +888,10 @@
       align-items: center;
       gap: 0.12rem;
       align-self: stretch;
-      width: 4.6rem;
+      width: 2.3rem;
       height: auto;
-      padding: 0.85rem 0.48rem 0.55rem;
-      overflow: hidden;
+      padding: 0.55rem 0.18rem 0.35rem;
+      overflow: visible;
       border-radius: 999px;
       background: #f7fcff;
       border: 1px solid rgb(255 255 255 / 0.95);
@@ -909,14 +915,14 @@
 
     .power-gauge span {
       top: auto;
-      font-size: 0.62rem;
-      letter-spacing: 0.06em;
+      font-size: 0.48rem;
+      letter-spacing: 0.02em;
     }
 
     .power-gauge strong {
       top: auto;
-      margin-bottom: 0.4rem;
-      font-size: 0.95rem;
+      margin-bottom: 0.85rem;
+      font-size: 0.68rem;
     }
 
     .power-track {
@@ -925,6 +931,7 @@
       width: 100%;
       min-height: 0;
       height: auto;
+      margin-top: 0;
       border: 0;
       border-radius: 999px;
       background: #d5e4f0;
@@ -932,10 +939,10 @@
     }
 
     .power-bar {
-      top: 0.22rem;
-      right: 0.22rem;
-      bottom: 0.22rem;
-      left: 0.22rem;
+      top: 0.14rem;
+      right: 0.14rem;
+      bottom: 0.14rem;
+      left: 0.14rem;
       width: auto;
       border-radius: 999px;
       background: transparent;
@@ -950,10 +957,10 @@
     }
 
     .power-handle {
-      bottom: calc(0.22rem + (100% - 0.44rem) * var(--power, 0.55));
-      width: 2.35rem;
-      height: 2.35rem;
-      border-width: 3px;
+      bottom: calc(0.575rem + (100% - 1.15rem) * var(--power, 0.55));
+      width: 1.15rem;
+      height: 1.15rem;
+      border-width: 2px;
     }
   }
 

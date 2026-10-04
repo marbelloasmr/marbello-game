@@ -354,6 +354,7 @@
     right: 0;
     bottom: 0;
     left: 0;
+    height: calc(var(--power, 0.55) * 100%);
     background: linear-gradient(to top, #7fd4ff, #ffe56a 58%, #ff4fa3);
   }
 
@@ -374,6 +375,7 @@
   .power-handle {
     position: absolute;
     left: 50%;
+    bottom: calc(var(--power, 0.55) * 100%);
     width: 0.95rem;
     height: 0.95rem;
     border: 2px solid #fff;
@@ -741,6 +743,10 @@
     display: none;
   }
 
+  .ready-tools {
+    display: contents;
+  }
+
   @media (min-width: 960px) {
     .topbar {
       align-items: center;
@@ -839,6 +845,115 @@
       background: rgb(247 252 255 / 0.94);
       -webkit-backdrop-filter: blur(16px);
       backdrop-filter: blur(16px);
+    }
+  }
+
+  @media (min-width: 960px) {
+    .ready-tools {
+      position: absolute;
+      top: 6.5rem;
+      right: 1.15rem;
+      z-index: 14;
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 1.35rem;
+      pointer-events: none;
+    }
+
+    .ready-tools .side-picker,
+    .ready-tools .power-gauge {
+      position: relative;
+      top: auto;
+      right: auto;
+      pointer-events: auto;
+    }
+
+    .side-picker.glass {
+      background: rgb(247 252 255 / 0.96);
+      border-radius: 999px;
+      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(16px);
+    }
+
+    .power-gauge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.12rem;
+      align-self: stretch;
+      width: 4.6rem;
+      height: auto;
+      padding: 0.85rem 0.48rem 0.55rem;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #f7fcff;
+      border: 1px solid rgb(255 255 255 / 0.95);
+      box-shadow:
+        0 0 0 3px rgb(255 79 163 / 0.45),
+        var(--shadow-float);
+    }
+
+    .power-gauge span,
+    .power-gauge strong {
+      position: static;
+      left: auto;
+      right: auto;
+      z-index: 2;
+      width: 100%;
+      margin: 0;
+      pointer-events: none;
+      line-height: 1.05;
+      text-align: center;
+    }
+
+    .power-gauge span {
+      top: auto;
+      font-size: 0.62rem;
+      letter-spacing: 0.06em;
+    }
+
+    .power-gauge strong {
+      top: auto;
+      margin-bottom: 0.4rem;
+      font-size: 0.95rem;
+    }
+
+    .power-track {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      height: auto;
+      border: 0;
+      border-radius: 999px;
+      background: #d5e4f0;
+      box-shadow: inset 0 1px 4px rgb(26 60 100 / 0.16);
+    }
+
+    .power-bar {
+      top: 0.22rem;
+      right: 0.22rem;
+      bottom: 0.22rem;
+      left: 0.22rem;
+      width: auto;
+      border-radius: 999px;
+      background: transparent;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .power-bar i,
+    .power-last {
+      left: 0.35rem;
+      width: calc(100% - 0.7rem);
+    }
+
+    .power-handle {
+      bottom: calc(0.22rem + (100% - 0.44rem) * var(--power, 0.55));
+      width: 2.35rem;
+      height: 2.35rem;
+      border-width: 3px;
     }
   }
 

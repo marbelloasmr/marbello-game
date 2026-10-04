@@ -2,7 +2,7 @@ import { useMemo, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import { BallCollider, CuboidCollider, RigidBody, type RapierRigidBody } from "@react-three/rapier"
 import { CanvasTexture, SRGBColorSpace, type Mesh } from "three"
-import { marbleById } from "@/data/marbleTypes"
+import { marbleById, type MarblePattern } from "@/data/marbleTypes"
 import { getAudio } from "@/audio/AudioEngine"
 import { FINISH_POSITION } from "@/game/trackLayout"
 import { marblePose } from "@/game/marblePose"
@@ -13,7 +13,16 @@ import type { Surface } from "@/physics/materials"
 import { cameraShake } from "@/game/CameraRig"
 import { watchStuck } from "@/game/stuck"
 
-function paintTexture(mode: "speckle" | "swirl", a: string, b: string) {
+function gloss(ctx: CanvasRenderingContext2D) {
+  const shine = ctx.createRadialGradient(78, 68, 6, 128, 120, 150)
+  shine.addColorStop(0, "rgba(255,255,255,0.72)")
+  shine.addColorStop(0.35, "rgba(255,255,255,0.08)")
+  shine.addColorStop(1, "rgba(255,255,255,0)")
+  ctx.fillStyle = shine
+  ctx.fillRect(0, 0, 256, 256)
+}
+
+function paintTexture(mode: Exclude<MarblePattern, "solid">, a: string, b: string) {
   const canvas = document.createElement("canvas")
   canvas.width = 256
   canvas.height = 256
@@ -22,26 +31,65 @@ function paintTexture(mode: "speckle" | "swirl", a: string, b: string) {
   ctx.fillStyle = a
   ctx.fillRect(0, 0, 256, 256)
   if (mode === "speckle") {
-    for (let i = 0; i < 80; i++) {
-      ctx.fillStyle = i % 3 === 0 ? b : "#7eb6ff"
+    for (let i = 0; i < 90; i++) {
+      ctx.fillStyle = i % 4 === 0 ? "#7eb6ff" : i % 3 === 0 ? "#2436f2" : b
       ctx.beginPath()
-      ctx.arc(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 7, 0, Math.PI * 2)
+      ctx.arc(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 8, 0, Math.PI * 2)
       ctx.fill()
     }
-  } else {
-    ctx.strokeStyle = b
-    ctx.lineWidth = 16
-    for (let i = 0; i < 5; i++) {
+  } else if (mode === "flower") {
+    const petals: Array<[number, number, string, number]> = [
+      [92, 108, "#ff4fa3", 34],
+      [164, 104, "#1a32f0", 34],
+      [88, 164, "#22c41c", 30],
+      [168, 166, "#5ad7ff", 30],
+      [128, 78, "#ffe56a", 22],
+      [128, 178, "#ff4fa3", 20],
+    ]
+    for (const [x, y, color, radius] of petals) {
+      ctx.fillStyle = color
       ctx.beginPath()
-      ctx.arc(128, 128, 30 + i * 22, i, i + 3.4)
+      ctx.arc(x, y, radius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.fillStyle = "#ffe56a"
+    ctx.beginPath()
+    ctx.arc(128, 128, 16, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = "#fff"
+    ctx.beginPath()
+    ctx.arc(128, 128, 6, 0, Math.PI * 2)
+    ctx.fill()
+  } else if (mode === "stripe") {
+    ctx.save()
+    ctx.translate(128, 128)
+    ctx.rotate(-0.7)
+    for (let i = -8; i <= 8; i++) {
+      ctx.fillStyle = i % 3 === 0 ? b : i % 3 === 1 ? "#7af0ff" : a
+      ctx.fillRect(-180, i * 18 - 8, 360, i % 3 === 2 ? 8 : 12)
+    }
+    ctx.restore()
+  } else {
+    ctx.lineCap = "round"
+    ctx.strokeStyle = b
+    ctx.lineWidth = 18
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath()
+      ctx.arc(128, 128, 28 + i * 26, i * 0.7, i * 0.7 + 3.2)
       ctx.stroke()
     }
-    ctx.strokeStyle = "#7af0ff"
+    ctx.strokeStyle = "#fff"
     ctx.lineWidth = 8
     ctx.beginPath()
-    ctx.arc(90, 110, 70, 0.4, 2.6)
+    ctx.arc(96, 118, 72, 0.3, 2.5)
+    ctx.stroke()
+    ctx.strokeStyle = "#7af0ff"
+    ctx.lineWidth = 7
+    ctx.beginPath()
+    ctx.arc(150, 140, 58, 2.2, 4.6)
     ctx.stroke()
   }
+  gloss(ctx)
   const tex = new CanvasTexture(canvas)
   tex.colorSpace = SRGBColorSpace
   return tex
@@ -73,9 +121,8 @@ export function Marble({ fancy }: { fancy: boolean }) {
   const marble = marbleById(marbleId)
   const live = phase === "running" || phase === "done"
   const texture = useMemo(() => {
-    if (marble.swirl) return paintTexture("swirl", marble.color, marble.accent)
-    if (marble.speckle) return paintTexture("speckle", marble.color, marble.accent)
-    return null
+    if (marble.pattern === "solid") return null
+    return paintTexture(marble.pattern, marble.color, marble.accent)
   }, [marble])
 
   const placed = spawn.custom
@@ -171,7 +218,7 @@ export function Marble({ fancy }: { fancy: boolean }) {
       <mesh name="play-marble" castShadow>
         <sphereGeometry args={[gameConfig.marbleRadius, fancy ? 48 : 28, fancy ? 32 : 20]} />
         <meshPhysicalMaterial
-          color={marble.color}
+          color={texture ? "#ffffff" : marble.color}
           map={texture}
           roughness={marble.roughness}
           metalness={marble.metalness}
@@ -187,7 +234,7 @@ export function Marble({ fancy }: { fancy: boolean }) {
       <mesh renderOrder={20} scale={1.002} raycast={() => null}>
         <sphereGeometry args={[gameConfig.marbleRadius, fancy ? 32 : 20, fancy ? 24 : 16]} />
         <meshPhysicalMaterial
-          color={marble.color}
+          color={texture ? "#ffffff" : marble.color}
           map={texture}
           roughness={marble.roughness}
           metalness={marble.metalness}

@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react"
 import { Link } from "@tanstack/react-router"
 import { Menu, Medal, Play, RotateCcw, Trophy, Video, Volume2, VolumeX, Wrench, X, Youtube, Images } from "lucide-react"
 import { brandConfig } from "@/config/brandConfig"
 import { youtubeConfig } from "@/config/youtubeConfig"
-import { MARBLES, marbleById, type MarbleId } from "@/data/marbleTypes"
+import { MARBLES, marbleById, swatchBackground, type MarbleId } from "@/data/marbleTypes"
 import { getBoard, subscribeBoard } from "@/game/leaderboard"
 import { ClientCanvas } from "@/components/game/ClientCanvas"
 import { BootScreen } from "@/components/game/BootScreen"
@@ -31,9 +31,11 @@ export function PlayExperience() {
       <div className="hud" hidden={cover}>
         <TopBar />
         <BrandCard />
-        <SidePicker />
+        <div className="ready-tools">
+          <PowerGauge />
+          <SidePicker />
+        </div>
         <Dock />
-        <PowerGauge />
         <Results />
         <UnstuckButton />
       </div>
@@ -223,7 +225,7 @@ function Swatches({ layout }: { layout: "row" | "col" }) {
           key={marble.id}
           type="button"
           className={marble.id === marbleId ? "swatch is-selected" : "swatch"}
-          style={{ background: `radial-gradient(circle at 32% 30%, white, ${marble.color} 42%, ${marble.accent})` }}
+          style={{ background: swatchBackground(marble) }}
           aria-label={marble.name}
           aria-selected={marble.id === marbleId}
           disabled={locked}
@@ -269,7 +271,7 @@ function PowerGauge() {
     setPower(startPower.value)
   }
   return (
-    <div className={`power-gauge${locked ? " is-locked" : ""}`}>
+    <div className={`power-gauge${locked ? " is-locked" : ""}`} style={{ "--power": power / 100 } as CSSProperties}>
       <span>Power</span>
       <strong>{power}%</strong>
       <div
@@ -287,13 +289,13 @@ function PowerGauge() {
         }}
       >
         <div className="power-bar">
-          <div className="power-fill" style={{ height: `${power}%` }} />
+          <div className="power-fill" />
           {[25, 50, 75, 100].map((tick) => (
             <i key={tick} style={{ bottom: `${tick}%` }} />
           ))}
           {startPower.last == null ? null : <b className="power-last" style={{ bottom: `${startPower.last}%` }} />}
         </div>
-        <em className="power-handle" style={{ bottom: `${power}%` }} />
+        <em className="power-handle" />
       </div>
     </div>
   )
